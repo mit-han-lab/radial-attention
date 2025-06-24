@@ -1,15 +1,17 @@
-# Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation
+# Radial Attention: $\\mathcal{O}(n\\log n)$ Sparse Attention with Energy Decay for Long Video Generation
+
+### [Paper](<>)
 
 ## 🔥News🔥
 
-- [2025/06] Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video length.
+- [2025-06-24] Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video length.
 
-## 📖About
+## 📖Overview
 
-**Radial Attention** is a **scalable sparse attention mechanism** for video diffusion models that translates **Spatiotemporal Energy Decay**—observed in attention score distributions—into exponentially decaying compute density. Unlike dense attention ($\mathcal{O}(n^2)$) or linear approximations, Radial Attention achieves **$\mathcal{O}(n \log n)$ complexity** while preserving expressive power for long videos. Here are our core contributions.
+**Radial Attention** is a **scalable sparse attention mechanism** for video diffusion models that translates **Spatiotemporal Energy Decay**—observed in attention score distributions—into exponentially decaying compute density. Unlike dense attention ($\\mathcal{O}(n^2)$) or linear approximations, Radial Attention achieves **$\\mathcal{O}(n \\log n)$ complexity** while preserving expressive power for long videos. Here are our core contributions.
 
 - **Physics-Inspired Sparsity**: Static masks enforce *spatially local* and *temporally decaying* attention, mirroring energy dissipation in physical systems.
-- **Efficient Length Extension**: Pre-trained models (e.g., Wan2.1-14B, HunyuanVideo) scale to **4× longer videos** via lightweight LoRA tuning, avoiding full-model retraining. 
+- **Efficient Length Extension**: Pre-trained models (e.g., Wan2.1-14B, HunyuanVideo) scale to **4× longer videos** via lightweight LoRA tuning, avoiding full-model retraining.
 
 ## 🔧Installation
 
@@ -56,12 +58,28 @@ We support Text-to-Video inference of HunyuanVideo. The running script is:
 bash scripts/hunyuan_t2v_inference.sh
 ```
 
-📕Open-source Plan
+## 📕Open-source Plan
 
+- [ ] ComfyUI integration (in [ComfyUI-nunchaku](https://github.com/mit-han-lab/ComfyUI-nunchaku))
 - [ ] Support Mochi-1
 - [ ] Support Multi-GPU inference
 - [ ] Release LoRA checkpoints for longer-video generation
 
+## Citation
+
+If you find Radial Attention useful or relevant to your research, please cite our paper:
+
+```bibtex
+@article{li2025radial,
+  title={Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation},
+  author={Li*, Xingyang and Li*, Muyang and Cai, Tianle and Xi, Haocheng and Yang, Shuo and Lin, Yujun and Zhang, Lvmin and Yang, Songlin and Hu, Jinbo and Peng, Kelly and Agrawala, Maneesh and Stoica, Ion and Keutzer, Kurt and Han, Song}
+  journal={arXiv preprint arXiv:2505.18875},
+  year={2025}
+}
+```
+
 ## Acknowledgements
 
 We thank [Sparse-VideoGen](https://github.com/svg-project/Sparse-VideoGen/tree/main) for insights on code design.
+
+We thank MIT-IBM Watson AI Lab, National Science Foundation, Hyundai, and Amazon for supporting this research.
