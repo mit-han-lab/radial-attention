@@ -18,7 +18,7 @@ MIT, NVIDIA, Princeton, UC Berkeley, Stanford, and First Intelligence
 - **Physics-Inspired Sparsity**: Static masks enforce *spatially local* and *temporally decaying* attention, mirroring energy dissipation in physical systems.
 - **Efficient Length Extension**: Pre-trained models (e.g., Wan2.1-14B, HunyuanVideo) scale to **4× longer videos** via lightweight LoRA tuning, avoiding full-model retraining.
 
-Below we introduce how we design our sparsity mask:
+## 🔍Sparsity Pattern Design
 
 ![patterns](https://github.com/user-attachments/assets/8e572cc5-27f3-4b24-bc0e-7d0a9d0b3cde)
 
@@ -26,9 +26,11 @@ Below we introduce how we design our sparsity mask:
 **(b)** The corresponding attention mask for (a). The compute density is reflected in the compute diagonal width of each frame-to-frame block. When the diagonal width drops below 1, we reduce the frequency of diagonals. We additionally add an attention sink.  
 **(c)** An example mask used in HunyuanVideo, illustrating the final sparsity pattern in practice.
 
-## 📖Performance
+## 📊Performance
 
 ![results](https://github.com/user-attachments/assets/861ffe21-3365-4bf3-abb1-852d4f20bc8d)
+
+**Radial Attention** reduces the computational complexity of attention from $\mathcal{O}(n^2)$ to $\mathcal{O}(n \log n)$. When generating a 500-frame 720p video with HunyuanVideo, it reduces the attention computation by 9×, achieves 3.7× speedup, and saves 4.6× tuning costs.
 
 ## 🔧Installation
 
@@ -82,7 +84,7 @@ bash scripts/hunyuan_t2v_inference.sh
 - [ ] Support Multi-GPU inference
 - [ ] Release LoRA checkpoints for longer-video generation
 
-## Citation
+## 📚Citation
 
 If you find Radial Attention useful or relevant to your research, please cite our paper:
 
@@ -90,7 +92,7 @@ If you find Radial Attention useful or relevant to your research, please cite ou
 @article{li2025radial,
   title={Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation},
   author={Li*, Xingyang and Li*, Muyang and Cai, Tianle and Xi, Haocheng and Yang, Shuo and Lin, Yujun and Zhang, Lvmin and Yang, Songlin and Hu, Jinbo and Peng, Kelly and Agrawala, Maneesh and Stoica, Ion and Keutzer, Kurt and Han, Song}
-  journal={arXiv preprint arXiv:2505.18875},
+  journal={arXiv preprint arXiv:2506.19852},
   year={2025}
 }
 ```
