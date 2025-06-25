@@ -1,28 +1,34 @@
 # Radial Attention
 
-![Image](https://github.com/user-attachments/assets/aa69414b-8d7e-4ba5-9b9f-9dcb4bb3cf90)
+**[2025-06-24]** Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video length.
+
+![teaser](https://github.com/user-attachments/assets/aa69414b-8d7e-4ba5-9b9f-9dcb4bb3cf90)
 We present *Radial Attention*, a sparse attention mechanism with $\mathcal{O}(n\log n)$ computational complexity. Radial Attention accelerates pre-trained HunyuanVideo by 1.9× at its default video length while maintaining comparable video quality. When generating 4× longer videos, it reduces tuning costs by up to 4.4× and speeds up inference by up to 3.7× versus dense attention.
 
-Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation
+**Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation**
 
+[Xingyang Li](https://github.com/Radioheading)\*, [Muyang Li](https://lmxyy.me/)\*, [Tianle Cai](https://www.tianle.website/#/), [Haocheng Xi](https://haochengxi.github.io/), [Shuo Yang](https://andy-yang-1.github.io/), [Yujun Lin](https://yujunlin.com/), [Lvmin Zhang](https://scholar.google.com/citations?user=ANMsdHYAAAAJ&hl=en), [Songlin Yang](https://sustcsonglin.github.io/), Jinbo Hu, Kelly Peng, [Maneesh Agrawala](https://graphics.stanford.edu/~maneesh/), [Ion Stoica](https://people.eecs.berkeley.edu/~istoica/), [Kurt Keutzer](https://people.eecs.berkeley.edu/~keutzer/), and [Song Han](https://hanlab.mit.edu/songhan)
 
-
-## 🔥News🔥
-
-- [2025-06-24] Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video length.
+MIT, NVIDIA, Princeton, UC Berkeley, Stanford, and First Intelligence
 
 ## 📖Overview
-
-
 
 **Radial Attention** is a **scalable sparse attention mechanism** for video diffusion models that translates **Spatiotemporal Energy Decay**—observed in attention score distributions—into exponentially decaying compute density. Unlike $\mathcal{O}(n^2)$ dense attention  or linear approximations, Radial Attention achieves **$\mathcal{O}(n \log n)$ complexity** while preserving expressive power for long videos. Here are our core contributions.
 
 - **Physics-Inspired Sparsity**: Static masks enforce *spatially local* and *temporally decaying* attention, mirroring energy dissipation in physical systems.
 - **Efficient Length Extension**: Pre-trained models (e.g., Wan2.1-14B, HunyuanVideo) scale to **4× longer videos** via lightweight LoRA tuning, avoiding full-model retraining.
 
-![Image](https://github.com/user-attachments/assets/8e572cc5-27f3-4b24-bc0e-7d0a9d0b3cde)
+Below we introduce how we design our sparsity mask:
 
-![Image](https://github.com/user-attachments/assets/861ffe21-3365-4bf3-abb1-852d4f20bc8d)
+![patterns](https://github.com/user-attachments/assets/8e572cc5-27f3-4b24-bc0e-7d0a9d0b3cde)
+
+**(a)** The compute density pattern. The attention map is divided into $2\lceil\log_2(\max(f, 2))\rceil - 1$ bands (here, the number of frames $f = 12$) based on the temporal distance between tokens. The central band has full compute density, while each successive outer band has half the density of the previous one. Except for band $\pm1$, each band also doubles the diagonal width of its predecessor.  
+**(b)** The corresponding attention mask for (a). The compute density is reflected in the compute diagonal width of each frame-to-frame block. When the diagonal width drops below 1, we reduce the frequency of diagonals. We additionally add an attention sink.  
+**(c)** An example mask used in HunyuanVideo, illustrating the final sparsity pattern in practice.
+
+## 📖Performance
+
+![results](https://github.com/user-attachments/assets/861ffe21-3365-4bf3-abb1-852d4f20bc8d)
 
 ## 🔧Installation
 
