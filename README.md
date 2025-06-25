@@ -1,4 +1,6 @@
-# [Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation](http://arxiv.org/abs/2506.19852)
+# Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation
+
+[**Paper**](http://arxiv.org/abs/2506.19852)
 
 ## 🔥News🔥
 
