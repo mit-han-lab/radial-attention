@@ -1,7 +1,5 @@
 # Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation
 
-### [Paper](<>)
-
 ## 🔥News🔥
 
 - [2025-06-24] Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video length.
@@ -14,6 +12,10 @@
 
 - **Physics-Inspired Sparsity**: Static masks enforce *spatially local* and *temporally decaying* attention, mirroring energy dissipation in physical systems.
 - **Efficient Length Extension**: Pre-trained models (e.g., Wan2.1-14B, HunyuanVideo) scale to **4× longer videos** via lightweight LoRA tuning, avoiding full-model retraining.
+
+![Image](https://github.com/user-attachments/assets/8e572cc5-27f3-4b24-bc0e-7d0a9d0b3cde)
+
+![Image](https://github.com/user-attachments/assets/861ffe21-3365-4bf3-abb1-852d4f20bc8d)
 
 ## 🔧Installation
 
