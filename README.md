@@ -32,6 +32,19 @@ MIT, NVIDIA, Princeton, UC Berkeley, Stanford, and First Intelligence
 
 **Radial Attention** reduces the computational complexity of attention from $\mathcal{O}(n^2)$ to $\mathcal{O}(n \log n)$. When generating a 500-frame 720p video with HunyuanVideo, it reduces the attention computation by 9×, achieves 3.7× speedup, and saves 4.6× tuning costs.
 
+## 🎥Visual Results
+### 🔹Accelerating Pre-trained Models
+![image](https://github.com/user-attachments/assets/ad488f95-a02e-4b62-a107-1bed40623a24)
+Radial Attention delivers nearly identical quality to Wan2.1-14B at default video length, while offering **1.8× speedup**.
+
+### 🔹Long Video Generation
+![image](https://github.com/user-attachments/assets/0d3cecb3-2f45-4a12-b1ba-e4a398628e22)
+Radial Attention enables **4× longer video generation** with LoRA tuning, outperforming dense attention in **vision rewards**, while achieving **3.7× speedup** and **4.4× lower tuning costs**.
+
+### 🔹LoRA Compatibility
+![image](https://github.com/user-attachments/assets/9aaab627-a8cc-4132-a801-0432e3d8d764)
+Fully compatible with existing style LoRAs. On HunyuanVideo, Radial Attention LoRA enables 4× video extension while preserving vision quality.
+
 ## 🔧Installation
 
 We start with cloning the repository:
