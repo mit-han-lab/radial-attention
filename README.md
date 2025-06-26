@@ -41,11 +41,11 @@ Radial Attention delivers nearly identical quality to Wan2.1-14B at default vide
 
 ### 🔹Long Video Generation
 ![image](https://github.com/user-attachments/assets/0d3cecb3-2f45-4a12-b1ba-e4a398628e22)
-Radial Attention enables **4× longer video generation** with LoRA tuning, outperforming dense attention in **vision rewards**, while achieving **3.7× speedup** and **4.4× lower tuning costs**.
+Radial Attention enables **4× longer video generation** with LoRA tuning, outperforming dense attention in vision rewards, while achieving **3.7× speedup** and **4.4× lower tuning costs**.
 
 ### 🔹LoRA Compatibility
 ![image](https://github.com/user-attachments/assets/9aaab627-a8cc-4132-a801-0432e3d8d764)
-Fully compatible with existing style LoRAs. On HunyuanVideo, Radial Attention LoRA enables 4× video extension while preserving vision quality.
+Fully compatible with existing style LoRAs. On HunyuanVideo, Radial Attention LoRA enables 4× video length extension while preserving vision quality.
 
 ## 🔧Installation
 
