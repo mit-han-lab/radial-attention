@@ -1,6 +1,8 @@
 # Radial Attention
+
 ### [Paper](https://arxiv.org/abs/2506.19852) | [Website](https://hanlab.mit.edu/projects/radial-attention)
-**[2025-06-24]** Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video lengths.
+
+**[2025-06-24]** Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video length.
 
 ![teaser](https://github.com/user-attachments/assets/aa69414b-8d7e-4ba5-9b9f-9dcb4bb3cf90)
 We present *Radial Attention*, a sparse attention mechanism with $\mathcal{O}(n\log n)$ computational complexity. Radial Attention accelerates pre-trained HunyuanVideo by 1.9× at its default video length while maintaining comparable video quality. When generating 4× longer videos, it reduces tuning costs by up to 4.4× and speeds up inference by up to 3.7× versus dense attention.
@@ -31,6 +33,19 @@ MIT, NVIDIA, Princeton, UC Berkeley, Stanford, and First Intelligence
 ![results](https://github.com/user-attachments/assets/861ffe21-3365-4bf3-abb1-852d4f20bc8d)
 
 **Radial Attention** reduces the computational complexity of attention from $\mathcal{O}(n^2)$ to $\mathcal{O}(n \log n)$. When generating a 500-frame 720p video with HunyuanVideo, it reduces the attention computation by 9×, achieves 3.7× speedup, and saves 4.6× tuning costs.
+
+## 🎥Visual Results
+### 🔹Accelerating Pre-trained Models
+![image](https://github.com/user-attachments/assets/ad488f95-a02e-4b62-a107-1bed40623a24)
+Radial Attention delivers nearly identical quality to Wan2.1-14B at default video length, while offering **1.8× speedup**.
+
+### 🔹Long Video Generation
+![image](https://github.com/user-attachments/assets/0d3cecb3-2f45-4a12-b1ba-e4a398628e22)
+Radial Attention enables **4× longer video generation** with LoRA tuning, outperforming dense attention in **vision rewards**, while achieving **3.7× speedup** and **4.4× lower tuning costs**.
+
+### 🔹LoRA Compatibility
+![image](https://github.com/user-attachments/assets/9aaab627-a8cc-4132-a801-0432e3d8d764)
+Fully compatible with existing style LoRAs. On HunyuanVideo, Radial Attention LoRA enables 4× video extension while preserving vision quality.
 
 ## 🔧Installation
 
