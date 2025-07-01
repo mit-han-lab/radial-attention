@@ -4,7 +4,8 @@
 
 **[2025-06-24]** Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video length.
 
-![teaser](https://github.com/user-attachments/assets/aa69414b-8d7e-4ba5-9b9f-9dcb4bb3cf90)
+https://github.com/user-attachments/assets/af1aaf29-4123-4e4c-9c1a-4360f63d7ce0
+
 We present *Radial Attention*, a sparse attention mechanism with $\mathcal{O}(n\log n)$ computational complexity. Radial Attention accelerates pre-trained HunyuanVideo by 1.9× at its default video length while maintaining comparable video quality. When generating 4× longer videos, it reduces tuning costs by up to 4.4× and speeds up inference by up to 3.7× versus dense attention.
 
 **Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation**
@@ -14,6 +15,8 @@ We present *Radial Attention*, a sparse attention mechanism with $\mathcal{O}(n\
 MIT, NVIDIA, Princeton, UC Berkeley, Stanford, and First Intelligence
 
 ## 📖Overview
+
+![teaser](https://github.com/user-attachments/assets/aa69414b-8d7e-4ba5-9b9f-9dcb4bb3cf90)
 
 **Radial Attention** is a **scalable sparse attention mechanism** for video diffusion models that translates **Spatiotemporal Energy Decay**—observed in attention score distributions—into exponentially decaying compute density. Unlike $\mathcal{O}(n^2)$ dense attention  or linear approximations, Radial Attention achieves **$\mathcal{O}(n \log n)$ complexity** while preserving expressive power for long videos. Here are our core contributions.
 
