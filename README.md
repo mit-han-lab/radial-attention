@@ -109,7 +109,7 @@ If you find Radial Attention useful or relevant to your research, please cite ou
 ```bibtex
 @article{li2025radial,
   title={Radial Attention: $\mathcal{O}(n\log n)$ Sparse Attention with Energy Decay for Long Video Generation},
-  author={Li*, Xingyang and Li*, Muyang and Cai, Tianle and Xi, Haocheng and Yang, Shuo and Lin, Yujun and Zhang, Lvmin and Yang, Songlin and Hu, Jinbo and Peng, Kelly and Agrawala, Maneesh and Stoica, Ion and Keutzer, Kurt and Han, Song}
+  author={Li*, Xingyang and Li*, Muyang and Cai, Tianle and Xi, Haocheng and Yang, Shuo and Lin, Yujun and Zhang, Lvmin and Yang, Songlin and Hu, Jinbo and Peng, Kelly and Agrawala, Maneesh and Stoica, Ion and Keutzer, Kurt and Han, Song},
   journal={arXiv preprint arXiv:2506.19852},
   year={2025}
 }
