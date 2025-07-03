@@ -2,6 +2,7 @@
 
 ### [Paper](https://arxiv.org/abs/2506.19852) | [Website](https://hanlab.mit.edu/projects/radial-attention)
 
+**[2025-07-03]** Radial Attention now supports [Wan2.1_14B_FusionX LoRA](https://huggingface.co/vrgamedevgirl84/Wan14BT2VFusioniX)! You can get high-quality videos within just 8 steps (100 seconds on a single H100 GPU)!
 **[2025-06-24]** Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video length.
 
 https://github.com/user-attachments/assets/af1aaf29-4123-4e4c-9c1a-4360f63d7ce0
@@ -50,6 +51,8 @@ Radial Attention enables **4× longer video generation** with LoRA tuning, outpe
 ![image](https://github.com/user-attachments/assets/9aaab627-a8cc-4132-a801-0432e3d8d764)
 Fully compatible with existing style LoRAs. On HunyuanVideo, Radial Attention LoRA enables 4× video length extension while preserving vision quality.
 
+### 🔹LoRA
+
 ## 🔧Installation
 
 We start with cloning the repository:
@@ -97,6 +100,8 @@ bash scripts/hunyuan_t2v_inference.sh
 
 ## 📕Open-source Plan
 
+- [x] Integrate [Wan2.1_14B_FusionX LoRA](https://huggingface.co/vrgamedevgirl84/Wan14BT2VFusioniX) for high-quality few-step generation
+- [ ] Adopt [Sparse-VideoGen](https://github.com/svg-project/Sparse-VideoGen/tree/main)'s fused kernels for further speedup
 - [ ] ComfyUI integration (in [ComfyUI-nunchaku](https://github.com/mit-han-lab/ComfyUI-nunchaku))
 - [ ] Support Mochi-1
 - [ ] Support Multi-GPU inference
