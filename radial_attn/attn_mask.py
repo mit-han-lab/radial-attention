@@ -147,14 +147,24 @@ class MaskMap:
         log_mask[:block_bound, :block_bound] = self.log_mask[:block_bound, :block_bound]
         return log_mask
 
-def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", block_size=128, decay_factor=1, model_type=None):
+def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", block_size=128, decay_factor=1, model_type=None, pre_defined_mask=None):
     orig_seqlen, num_head, hidden_dim = query.shape
     
     query = pad_qkv(query, block_size=block_size)
     key = pad_qkv(key, block_size=block_size)
     value = pad_qkv(value, block_size=block_size)
-    
-    mask = mask_map.queryLogMask(query, sparsity_type, block_size=block_size, decay_factor=decay_factor, model_type=model_type) if mask_map else None
+    if sparsity_type == "dense":
+        mask = torch.ones((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
+    else:
+        mask = mask_map.queryLogMask(query, sparsity_type, block_size=block_size, decay_factor=decay_factor, model_type=model_type) if mask_map else None
+    if pre_defined_mask is not None:
+        # shrink the pre-defined mask to the block size
+        extended_mask = torch.zeros((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
+        extended_mask[:pre_defined_mask.shape[0] // block_size, :pre_defined_mask.shape[1] // block_size] = pre_defined_mask.reshape(
+            pre_defined_mask.shape[0] // block_size, block_size, pre_defined_mask.shape[1] // block_size, block_size
+        ).any(dim=(1, 3))
+        extended_mask[pre_defined_mask.shape[0] // block_size:, :] = True
+        mask = torch.logical_and(mask, extended_mask)
     seqlen = query.shape[0]
     workspace_buffer = torch.empty(128 * 1024 * 1024, device=query.device, dtype=torch.uint8)
     bsr_wrapper = flashinfer.BlockSparseAttentionWrapper(

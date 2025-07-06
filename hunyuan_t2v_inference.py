@@ -5,6 +5,7 @@ import torch
 from diffusers import HunyuanVideoPipeline, HunyuanVideoTransformer3DModel
 from diffusers.utils import export_to_video
 import argparse
+from diffusers.schedulers.scheduling_flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 
 from radial_attn.utils import set_seed
 from radial_attn.models.hunyuan.inference import replace_hunyuan_attention
@@ -55,13 +56,12 @@ if __name__ == "__main__":
         torch_dtype=torch.bfloat16
     )
     pipe = HunyuanVideoPipeline.from_pretrained(
-        args.model_id, 
-        transformer=transformer, 
-        torch_dtype=torch.float16
+        args.model_id,  
+        transformer=transformer,
+        torch_dtype=torch.bfloat16
     )
     pipe.vae.enable_tiling()
     pipe.to("cuda")
-    # pipe.scheduler._shift = 7
     if args.lora_checkpoint_dir:
         print(f"Loading LoRA weights from {args.lora_checkpoint_dir}")
         config_path = os.path.join(args.lora_checkpoint_dir, "lora_config.json")

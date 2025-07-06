@@ -93,27 +93,28 @@ class HunyuanVideoAttnSparseProcessor2_0:
 
         # 5. Attention
         if timestep is None: # this is the case for dense attention
-            with sdpa_kernel(bzsackends=[SDPBackend.FLASH_ATTENTION]):
-                hidden_states = F.scaled_dot_product_attention(
-                    query, key, value, dropout_p=0.0, is_causal=False
-                )
+            hidden_states = F.scaled_dot_product_attention(
+                query, key, value, attn_mask = attention_mask, dropout_p=0.0, is_causal=False
+            )
         else:  # this is the case for sparse attention
             # print(f"numeral_timestep: {numeral_timestep}, dense_timestep: {self.dense_timestep}, layer_idx: {self.layer_idx}, dense_block: {self.dense_block}, sparse_type: {self.sparse_type}")
+            pre_defined_mask=attention_mask[0, 0].expand(query.shape[0], query.shape[0])
+            batch_size = query.shape[0]
+            query = rearrange(query, "b h s d" " -> (b s) h d")
+            key = rearrange(key, "b h s d" " -> (b s) h d")
             if numeral_timestep < self.dense_timestep or self.layer_idx < self.dense_block or self.sparse_type == "dense":
-                with sdpa_kernel(backends=[SDPBackend.FLASH_ATTENTION]):
-                    hidden_states = F.scaled_dot_product_attention(
-                        query, key, value, dropout_p=0.0, is_causal=False
-                    )
-            else:
-                batch_size = query.shape[0]
-                query = rearrange(query, "b h s d" " -> (b s) h d")
-                key = rearrange(key, "b h s d" " -> (b s) h d")
-                value = rearrange(value, "b h s d" " -> (b s) h d")
                 # apply radial attention
                 hidden_states = RadialAttention(
-                    query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type=self.sparse_type, block_size=128, decay_factor=self.decay_factor, model_type="hunyuan",
+                    query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="dense", block_size=128, decay_factor=self.decay_factor, model_type="hunyuan", pre_defined_mask=pre_defined_mask
                 )
-                hidden_states = rearrange(hidden_states, "(b s) h d -> b h s d", b=batch_size)
+                
+            else:
+                # apply radial attention
+                hidden_states = RadialAttention(
+                    query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type=self.sparse_type, block_size=128, decay_factor=self.decay_factor, model_type="hunyuan", pre_defined_mask=pre_defined_mask
+                )
+                
+            hidden_states = rearrange(hidden_states, "(b s) h d -> b h s d", b=batch_size)
         hidden_states = hidden_states.transpose(1, 2).flatten(2, 3)
         hidden_states = hidden_states.to(query.dtype)
 
