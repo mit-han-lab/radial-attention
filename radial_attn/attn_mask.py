@@ -105,7 +105,7 @@ def gen_log_mask_shrinked(query, s, video_token_num, num_frame, block_size=128, 
     for i in range(num_frame):
         for j in range(num_frame):
             local_mask = torch.zeros((token_per_frame, token_per_frame), device=query.device, dtype=torch.bool)
-            if j == 0: # this is attention sink
+            if j == 0 and model_type == "wan": # this is attention sink
                 local_mask = torch.ones((token_per_frame, token_per_frame), device=query.device, dtype=torch.bool)
             else:
                 window_width = get_window_width(i, j, token_per_frame, sparse_type, num_frame, decay_factor=decay_factor, block_size=block_size, model_type=model_type)
