@@ -38,10 +38,6 @@ def replace_hunyuan_attention(
         m.attn.processor.layer_idx = layer_idx + 20
         
     for _, m in pipe.transformer.named_modules():
-        # if isinstance(m, Attention):
-        #     # print all of the attr
-        #     import pdb; pdb.set_trace()
-        #     print(f"attr: {m.__dict__}")
         if isinstance(m, Attention) and hasattr(m.processor, "layer_idx"):
             layer_idx = m.processor.layer_idx
             m.set_processor(AttnModule(layer_idx))

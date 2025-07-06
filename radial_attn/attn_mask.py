@@ -149,36 +149,32 @@ class MaskMap:
 
 def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", block_size=128, decay_factor=1, model_type=None, pre_defined_mask=None):
     orig_seqlen, num_head, hidden_dim = query.shape
-    
-    query = pad_qkv(query, block_size=block_size)
-    key = pad_qkv(key, block_size=block_size)
-    value = pad_qkv(value, block_size=block_size)
+
     if sparsity_type == "dense":
         mask = torch.ones((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
     else:
         mask = mask_map.queryLogMask(query, sparsity_type, block_size=block_size, decay_factor=decay_factor, model_type=model_type) if mask_map else None
-    if pre_defined_mask is not None:
-        # shrink the pre-defined mask to the block size
-        extended_mask = torch.zeros((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
-        extended_mask[:pre_defined_mask.shape[0] // block_size, :pre_defined_mask.shape[1] // block_size] = pre_defined_mask.reshape(
-            pre_defined_mask.shape[0] // block_size, block_size, pre_defined_mask.shape[1] // block_size, block_size
-        ).any(dim=(1, 3))
-        extended_mask[pre_defined_mask.shape[0] // block_size:, :] = True
-        mask = torch.logical_and(mask, extended_mask)
-    seqlen = query.shape[0]
+    
+    if sparsity_type == "dense":
+        video_mask = torch.ones((mask_map.video_token_num // block_size, mask_map.video_token_num // block_size), device=query.device, dtype=torch.bool)
+    else:
+        video_mask = mask_map.queryLogMask(query, sparsity_type, block_size=block_size, decay_factor=decay_factor, model_type=model_type) if mask_map else None
+        video_mask = video_mask[:mask_map.video_token_num // block_size, :mask_map.video_token_num // block_size]
+    # perform block-sparse attention on the video tokens
     workspace_buffer = torch.empty(128 * 1024 * 1024, device=query.device, dtype=torch.uint8)
     bsr_wrapper = flashinfer.BlockSparseAttentionWrapper(
         workspace_buffer,
         backend="fa2",
     )
     
-    indptr = get_indptr_from_mask(mask, query)
-    indices = get_indices_from_mask(mask, query)
+    indptr = get_indptr_from_mask(video_mask, query)
+    indices = get_indices_from_mask(video_mask, query)
+    
     bsr_wrapper.plan(
         indptr=indptr,
         indices=indices,
-        M=seqlen,
-        N=seqlen,
+        M=mask_map.video_token_num,
+        N=mask_map.video_token_num,
         R=block_size,
         C=block_size,
         num_qo_heads=num_head,
@@ -186,8 +182,28 @@ def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", bl
         head_dim=hidden_dim,
     )
     
-    o = bsr_wrapper.run(query, key, value)
-    return o[:orig_seqlen, :, :]
+    video_video_o, video_video_o_lse = bsr_wrapper.run(query[:mask_map.video_token_num, :, :], key[:mask_map.video_token_num, :, :], value[:mask_map.video_token_num, :, :], return_lse=True) 
+    # perform non-causal flashinfer on the text tokens
+    video_text_o, video_text_o_lse = flashinfer.single_prefill_with_kv_cache(
+        q=query[:mask_map.video_token_num, :, :],
+        k=key[mask_map.video_token_num:pre_defined_mask[0].sum(), :, :],
+        v=value[mask_map.video_token_num:pre_defined_mask[0].sum(), :, :],
+        causal=False,
+        return_lse=True,
+    )
+    
+    # merge the two results
+    o_video, _ = flashinfer.merge_state(v_a=video_video_o, s_a=video_video_o_lse, v_b=video_text_o, s_b=video_text_o_lse)
+    
+    o_text = flashinfer.single_prefill_with_kv_cache(
+        q=query[mask_map.video_token_num:, :, :],
+        k=key,
+        v=value,
+        causal=False,
+        return_lse=False,
+    )
+    
+    return torch.cat([o_video, o_text], dim=0)
 
 if __name__ == "__main__":
     query = torch.randn(1, 2, 4, 64).cuda()

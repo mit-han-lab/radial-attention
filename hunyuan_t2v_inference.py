@@ -82,18 +82,17 @@ if __name__ == "__main__":
     if args.negative_prompt is None:
         args.negative_prompt = "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"
 
-    # Replace attention if radial pattern is selected
-    if args.pattern == "radial":
-        replace_hunyuan_attention(
-            pipe,
-            args.height,
-            args.width,
-            args.num_frames,
-            args.dense_layers,
-            args.dense_timesteps,
-            args.decay_factor,
-            args.pattern,
-        )
+    # here we replace the attentinon processor with our customized attention api based on flashinfer
+    replace_hunyuan_attention(
+        pipe,
+        args.height,
+        args.width,
+        args.num_frames,
+        args.dense_layers,
+        args.dense_timesteps,
+        args.decay_factor,
+        args.pattern,
+    )
         
     # Generate video
     output = pipe(
