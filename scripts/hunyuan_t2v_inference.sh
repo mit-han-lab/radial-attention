@@ -10,9 +10,9 @@ python hunyuan_t2v_inference.py \
     --num_frames 117 \
     --dense_layers $dense_layers \
     --dense_timesteps $dense_timesteps \
-    --decay_factor 1 \
+    --decay_factor 0.95 \
     --pattern "radial" \
-    --output_file "output.mp4"
+    --output_file "output_radial.mp4"
 
 # this is the setting for 4x length T2V inference
 # dense_layers=2

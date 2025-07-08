@@ -178,15 +178,20 @@ def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", bl
     )
     
     if pre_defined_mask is not None:
-        video_video_o, video_video_o_lse = bsr_wrapper.run(query[:mask_map.video_token_num, :, :], key[:mask_map.video_token_num, :, :], value[:mask_map.video_token_num, :, :], return_lse=True) 
+        video_video_o, video_video_o_lse = bsr_wrapper.run(
+            query[:mask_map.video_token_num, :, :],
+            key[:mask_map.video_token_num, :, :],
+            value[:mask_map.video_token_num, :, :],
+            return_lse=True
+        ) 
         # perform non-causal flashinfer on the text tokens
-        token_kv_end = pre_defined_mask[0].sum()
         video_text_o, video_text_o_lse = flashinfer.single_prefill_with_kv_cache(
             q=query[:mask_map.video_token_num, :, :],
-            k=key[mask_map.video_token_num:token_kv_end, :, :],
-            v=value[mask_map.video_token_num:token_kv_end, :, :],
+            k=key[mask_map.video_token_num:, :, :],
+            v=value[mask_map.video_token_num:, :, :],
             causal=False,
             return_lse=True,
+            custom_mask=pre_defined_mask[:mask_map.video_token_num, mask_map.video_token_num:]
         )
         
         # merge the two results
@@ -198,11 +203,16 @@ def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", bl
             v=value,
             causal=False,
             return_lse=False,
+            custom_mask=pre_defined_mask[mask_map.video_token_num:, :]
         )
         
         return torch.cat([o_video, o_text], dim=0)
     else:
-        o = bsr_wrapper.run(query[:mask_map.video_token_num, :, :], key[:mask_map.video_token_num, :, :], value[:mask_map.video_token_num, :, :])
+        o = bsr_wrapper.run(
+            query[:mask_map.video_token_num, :, :],
+            key[:mask_map.video_token_num, :, :],
+            value[:mask_map.video_token_num, :, :]
+        )
         return o
 if __name__ == "__main__":
     query = torch.randn(1, 2, 4, 64).cuda()
@@ -224,12 +234,10 @@ if __name__ == "__main__":
     temporal_mask = gen_log_mask_shrinked(query, padded_video_token_num, video_token_num, num_frame, sparse_type="radial", decay_factor=1, model_type="hunyuan")
     plt.figure(figsize=(10, 8), dpi=500)
 
-    # 显示图像
     plt.imshow(temporal_mask.cpu().numpy()[:, :], cmap='hot')
     plt.colorbar()
     plt.title("Temporal Mask")
 
-    # 保存图像（移除了quality参数）
     plt.savefig("temporal_mask.png",
                 dpi=300,
                 bbox_inches='tight',

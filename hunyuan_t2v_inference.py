@@ -3,9 +3,11 @@ import json
 from termcolor import colored
 import torch
 from diffusers import HunyuanVideoPipeline, HunyuanVideoTransformer3DModel
+from diffusers.quantizers import PipelineQuantizationConfig
 from diffusers.utils import export_to_video
 import argparse
 from diffusers.schedulers.scheduling_flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
+from radial_attn.models.hunyuan.sparse_transformer import replace_sparse_forward
 
 from radial_attn.utils import set_seed
 from radial_attn.models.hunyuan.inference import replace_hunyuan_attention
@@ -48,6 +50,7 @@ if __name__ == "__main__":
     
     set_seed(args.seed)
     
+    replace_sparse_forward()
     
     # Load model with bfloat16 precision
     transformer = HunyuanVideoTransformer3DModel.from_pretrained(
@@ -60,8 +63,8 @@ if __name__ == "__main__":
         transformer=transformer,
         torch_dtype=torch.bfloat16
     )
+    # pipe.enable_model_cpu_offload()
     pipe.vae.enable_tiling()
-    pipe.to("cuda")
     if args.lora_checkpoint_dir:
         print(f"Loading LoRA weights from {args.lora_checkpoint_dir}")
         config_path = os.path.join(args.lora_checkpoint_dir, "lora_config.json")

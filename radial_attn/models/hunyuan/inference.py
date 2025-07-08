@@ -29,8 +29,6 @@ def replace_hunyuan_attention(
     print(f"video token num: {AttnModule.mask_map.video_token_num}, num frames: {num_frames}")
     print(f"dense layers: {dense_layers}, dense timesteps: {dense_timesteps}, decay factor: {decay_factor}")
 
-    replace_sparse_forward()
-
     for layer_idx, m in enumerate(pipe.transformer.transformer_blocks):
         m.attn.processor.layer_idx = layer_idx
 
