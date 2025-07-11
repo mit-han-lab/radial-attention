@@ -23,7 +23,7 @@ def replace_hunyuan_attention(
     AttnModule.dense_timestep = dense_timesteps
     AttnModule.mask_map = MaskMap(video_token_num=frame_size * num_frames, num_frame=num_frames)
     AttnModule.decay_factor = decay_factor
-    AttnModule.sparsity_type = sparsity_type
+    AttnModule.sparse_type = sparsity_type
 
     print(f"Replacing Hunyuan attention with {sparsity_type} attention")
     print(f"video token num: {AttnModule.mask_map.video_token_num}, num frames: {num_frames}")
