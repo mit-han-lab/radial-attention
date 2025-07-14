@@ -10,6 +10,7 @@ import argparse
 
 from radial_attn.utils import set_seed
 from radial_attn.models.wan.inference import replace_wan_attention
+from radial_attn.models.wan.sparse_transformer import replace_sparse_forward
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate video from text prompt using Wan-Diffuser")
@@ -30,9 +31,13 @@ if __name__ == "__main__":
     parser.add_argument("--dense_layers", type=int, default=0, help="Number of dense layers to use in the Wan attention, set to 1 for 1x length video, 2 for 2x length video")
     parser.add_argument("--dense_timesteps", type=int, default=0, help="Number of dense timesteps to use in the Wan attention, set to 12 for 1x length video, 2 for 2x length video")
     parser.add_argument("--decay_factor", type=float, default=1, help="Decay factor for the Wan attention, we use this to control window width")
+    parser.add_argument("--use_sage_attention", action="store_true", help="Use SAGE attention for quantized inference")
+    parser.add_argument("--use_model_offload", action="store_true", help="Enable model offloading to CPU for memory efficiency")
     args = parser.parse_args()
     
     set_seed(args.seed)
+    
+    replace_sparse_forward()
     
     # Available models: Wan-AI/Wan2.1-T2V-14B-Diffusers, Wan-AI/Wan2.1-T2V-1.3B-Diffusers
     model_id = "Wan-AI/Wan2.1-T2V-14B-Diffusers"
@@ -46,7 +51,13 @@ if __name__ == "__main__":
             args.lora_checkpoint_dir,
             weight_name=args.lora_checkpoint_name,
         )
-    pipe.to("cuda")
+        
+        
+    if args.use_model_offload:
+        print("Using model offloading for memory efficiency")
+        pipe.enable_sequential_cpu_offload()
+    else:
+        pipe.to("cuda")
 
     if args.prompt is None:
         print(colored("Using default prompt", "red"))
@@ -68,6 +79,7 @@ if __name__ == "__main__":
             args.dense_timesteps,
             args.decay_factor,
             args.pattern,
+            args.use_sage_attention,
         )
         
     output = pipe(

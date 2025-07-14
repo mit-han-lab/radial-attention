@@ -46,6 +46,12 @@ if __name__ == "__main__":
     parser.add_argument("--lora_checkpoint_dir", type=str, default=None, 
                        help="Directory containing LoRA checkpoint files")
     
+    parser.add_argument("--use_sage_attention", action="store_true",
+                        help="Use SAGE attention for quantized inference")
+    
+    parser.add_argument("--use_model_offload", action="store_true",
+                        help="Enable model offloading to CPU for memory efficiency")
+    
     args = parser.parse_args()
     
     set_seed(args.seed)
@@ -63,7 +69,13 @@ if __name__ == "__main__":
         transformer=transformer,
         torch_dtype=torch.bfloat16
     )
-    # pipe.enable_model_cpu_offload()
+    
+    if args.use_model_offload:
+        print("Using model offloading for memory efficiency")
+        pipe.enable_sequential_cpu_offload()
+    else:
+        pipe.to("cuda")
+    
     pipe.vae.enable_tiling()
     if args.lora_checkpoint_dir:
         print(f"Loading LoRA weights from {args.lora_checkpoint_dir}")
@@ -95,6 +107,7 @@ if __name__ == "__main__":
         args.dense_timesteps,
         args.decay_factor,
         args.pattern,
+        args.use_sage_attention,
     )
         
     # Generate video
