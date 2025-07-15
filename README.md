@@ -2,8 +2,10 @@
 
 ### [Paper](https://arxiv.org/abs/2506.19852) | [Website](https://hanlab.mit.edu/projects/radial-attention)
 
-**[2025-07-15]** Radial Attention now supports [SageAttention](https://github.com/thu-ml/SageAttention)! With int8 sparse attention, Radial Attention achieves further speedup! 
+**[2025-07-14]** Radial Attention is now compatible with [SageAttention](https://github.com/thu-ml/SageAttention) version 1!
+
 **[2025-07-03]** Radial Attention now supports [Wan2.1_14B_FusionX LoRA](https://huggingface.co/vrgamedevgirl84/Wan14BT2VFusioniX)! You can get high-quality videos within just 8 steps (90 seconds on a single H100 GPU)!
+
 **[2025-06-24]** Radial Attention is open-sourced! Wan2.1-14B, HunyuanVideo, and Mochi-1 are supported for fast video generation with high quality under 1-4⨉ video length.
 
 https://github.com/user-attachments/assets/af1aaf29-4123-4e4c-9c1a-4360f63d7ce0
@@ -79,6 +81,11 @@ pip install flash-attn --no-build-isolation
 
 # 4. Install FlashInfer for fast and hardware-friendly inference
 pip install flashinfer-python -i https://flashinfer.ai/whl/cu124/torch2.5/
+
+# 5. (Optional) Install Sparse_SageAttention for further acceleration
+cd third_party/sparse_sageattn
+python setup.py install
+cd ../..
 ```
 
 ## 🚀Inference Examples
