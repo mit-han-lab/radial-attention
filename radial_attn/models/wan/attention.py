@@ -13,6 +13,7 @@ class WanSparseAttnProcessor2_0:
     dense_block = 0
     decay_factor = 1.0
     sparse_type = "radial"  # default to radial attention, can be changed to "dense" for dense attention
+    use_sage_attention = False
     
     def __init__(self, layer_idx):
         if not hasattr(F, "scaled_dot_product_attention"):
@@ -84,23 +85,22 @@ class WanSparseAttnProcessor2_0:
                     query, key, value, dropout_p=0.0, is_causal=False
                 )
         else: # this is the case for sparse attention
+            batch_size = query.shape[0]
+            # transform (batch_size, num_heads, seq_len, head_dim) to (seq_len * batch_size, num_heads, head_dim)
+            query = rearrange(query, "b h s d -> (b s) h d")
+            key = rearrange(key, "b h s d -> (b s) h d")
+            value = rearrange(value, "b h s d -> (b s) h d")
             if numeral_timestep < self.dense_timestep or self.layer_idx < self.dense_block or self.sparse_type == "dense":
-                with sdpa_kernel(backends=[SDPBackend.FLASH_ATTENTION]):
-                    hidden_states = F.scaled_dot_product_attention(
-                        query, key, value, dropout_p=0.0, is_causal=False
-                    )
+                hidden_states = RadialAttention(
+                    query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="dense", block_size=128, decay_factor=self.decay_factor, model_type="wan", pre_defined_mask=None, use_sage_attention=self.use_sage_attention
+                )
             else:
-                batch_size = query.shape[0]
-                # transform (batch_size, num_heads, seq_len, head_dim) to (seq_len * batch_size, num_heads, head_dim)
-                query = rearrange(query, "b h s d -> (b s) h d")
-                key = rearrange(key, "b h s d -> (b s) h d")
-                value = rearrange(value, "b h s d -> (b s) h d")
                 # apply radial attention
                 hidden_states = RadialAttention(
-                    query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="radial", block_size=128, decay_factor=self.decay_factor, model_type="wan",
+                    query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="radial", block_size=128, decay_factor=self.decay_factor, model_type="wan", pre_defined_mask=None, use_sage_attention=self.use_sage_attention
                 )
-                # transform back to (batch_size, num_heads, seq_len, head_dim)
-                hidden_states = rearrange(hidden_states, "(b s) h d -> b h s d", b=batch_size)
+            # transform back to (batch_size, num_heads, seq_len, head_dim)
+            hidden_states = rearrange(hidden_states, "(b s) h d -> b h s d", b=batch_size)
         hidden_states = hidden_states.transpose(1, 2).flatten(2, 3)
         hidden_states = hidden_states.type_as(query)
 

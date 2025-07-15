@@ -12,7 +12,8 @@ class HunyuanVideoAttnSparseProcessor2_0:
     dense_timestep = 0
     dense_block = 0
     decay_factor = 1.0
-    sparse_type = "radial"  # default to radial attention, can be changed to
+    sparse_type = "radial"  # default to radial attention, can be changed to "dense"
+    use_sage_attention = False
     
     def __init__(self, layer_idx):
         if not hasattr(F, "scaled_dot_product_attention"):
@@ -101,13 +102,13 @@ class HunyuanVideoAttnSparseProcessor2_0:
         if timestep is None or numeral_timestep < self.dense_timestep or self.layer_idx < self.dense_block or self.sparse_type == "dense":
             # apply dense attention
             hidden_states = RadialAttention(
-                query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="dense", block_size=128, decay_factor=self.decay_factor, model_type="hunyuan", pre_defined_mask=pre_defined_mask
+                query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="dense", block_size=128, decay_factor=self.decay_factor, model_type="hunyuan", pre_defined_mask=pre_defined_mask, use_sage_attention=self.use_sage_attention
             )
             
         else:
             # apply radial attention
             hidden_states = RadialAttention(
-                query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type=self.sparse_type, block_size=128, decay_factor=self.decay_factor, model_type="hunyuan", pre_defined_mask=pre_defined_mask
+                query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type=self.sparse_type, block_size=128, decay_factor=self.decay_factor, model_type="hunyuan", pre_defined_mask=pre_defined_mask, use_sage_attention=self.use_sage_attention
             )
             
         hidden_states = rearrange(hidden_states, "(b s) h d -> b h s d", b=batch_size)

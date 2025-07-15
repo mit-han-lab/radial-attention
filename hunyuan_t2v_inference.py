@@ -3,9 +3,11 @@ import json
 from termcolor import colored
 import torch
 from diffusers import HunyuanVideoPipeline, HunyuanVideoTransformer3DModel
+from diffusers.quantizers import PipelineQuantizationConfig
 from diffusers.utils import export_to_video
 import argparse
 from diffusers.schedulers.scheduling_flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
+from radial_attn.models.hunyuan.sparse_transformer import replace_sparse_forward
 
 from radial_attn.utils import set_seed
 from radial_attn.models.hunyuan.inference import replace_hunyuan_attention
@@ -44,10 +46,17 @@ if __name__ == "__main__":
     parser.add_argument("--lora_checkpoint_dir", type=str, default=None, 
                        help="Directory containing LoRA checkpoint files")
     
+    parser.add_argument("--use_sage_attention", action="store_true",
+                        help="Use SAGE attention for quantized inference")
+    
+    parser.add_argument("--use_model_offload", action="store_true",
+                        help="Enable model offloading to CPU for memory efficiency")
+    
     args = parser.parse_args()
     
     set_seed(args.seed)
     
+    replace_sparse_forward()
     
     # Load model with bfloat16 precision
     transformer = HunyuanVideoTransformer3DModel.from_pretrained(
@@ -60,8 +69,14 @@ if __name__ == "__main__":
         transformer=transformer,
         torch_dtype=torch.bfloat16
     )
+    
+    if args.use_model_offload:
+        print("Using model offloading for memory efficiency")
+        pipe.enable_sequential_cpu_offload()
+    else:
+        pipe.to("cuda")
+    
     pipe.vae.enable_tiling()
-    pipe.to("cuda")
     if args.lora_checkpoint_dir:
         print(f"Loading LoRA weights from {args.lora_checkpoint_dir}")
         config_path = os.path.join(args.lora_checkpoint_dir, "lora_config.json")
@@ -92,6 +107,7 @@ if __name__ == "__main__":
         args.dense_timesteps,
         args.decay_factor,
         args.pattern,
+        args.use_sage_attention,
     )
         
     # Generate video
