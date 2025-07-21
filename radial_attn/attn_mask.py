@@ -3,6 +3,15 @@ import flashinfer
 import matplotlib.pyplot as plt
 from sparse_sageattn import sparse_sageattn
 from einops import rearrange, repeat
+from sageattention import sageattn
+from spas_sage_attn import block_sparse_sage2_attn_cuda
+
+# try to import block_sparse_sage2_attn_cuda from spas_sage_attn, if it fails, use the one from sparse_sageattn
+try:
+    from spas_sage_attn import block_sparse_sage2_attn_cuda
+except ImportError:
+    print("Using sparse_sageattn as block_sparse_sage2_attn_cuda")
+    from sparse_sageattn import sparse_sageattn as block_sparse_sage2_attn_cuda
 
 def sparge_mask_convert(mask: torch.Tensor, block_size: int = 128) -> torch.Tensor:
     assert block_size in [128, 64], "Radial Attention only supports block size of 128 or 64"
@@ -167,12 +176,10 @@ def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre
     if video_mask.all():
         # dense case
         kv_border = pre_defined_mask[0].sum() if pre_defined_mask is not None else key.shape[0]
-        output_video = sparse_sageattn(
-            query[:mask_map.video_token_num].unsqueeze(0),
+        output_video = sageattn(
+            query[:mask_map.video_token_num, :, :].unsqueeze(0),
             key[:kv_border, :, :].unsqueeze(0),
             value[:kv_border, :, :].unsqueeze(0),
-            mask_id=None,
-            is_causal=False,
             tensor_layout="NHD",
         )[0]
         
@@ -197,15 +204,14 @@ def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre
     converted_mask = converted_mask.to(torch.int8)
     if pre_defined_mask is None:
         # wan case
-        output = sparse_sageattn(
+        output = block_sparse_sage2_attn_cuda(
             query_hnd[:, :, :mask_map.video_token_num, :],
             key_hnd[:, :, :mask_map.video_token_num, :],
             value_hnd[:, :, :mask_map.video_token_num, :],
             mask_id=converted_mask,
-            is_causal=False,
             tensor_layout="HND",
         )
-        
+
         # rearrange back to (s, h, d), we know that b = 1
         output = rearrange(output, "b h s d -> s (b h) d", b=1)
         return output
@@ -215,12 +221,11 @@ def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre
     value_video = value_hnd
     kv_border = (pre_defined_mask[0].sum() + 63) // 64
     converted_mask[:, :, :, kv_border:] = False
-    output_video = sparse_sageattn(
+    output_video = block_sparse_sage2_attn_cuda(
         query_video,
         key_video,
         value_video,
         mask_id=converted_mask[:, :, :mask_map.video_token_num // block_size, :],
-        is_causal=False,
         tensor_layout="HND",
     )
     
