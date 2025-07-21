@@ -4,3 +4,9 @@
 [submodule "third_party/sparse_sageattn"]
 	path = third_party/sparse_sageattn
 	url = https://github.com/Radioheading/Block-Sparse-SageAttention.git
+[submodule "third_party/SageAttention"]
+	path = third_party/SageAttention
+	url = git@github.com:thu-ml/SageAttention.git
+[submodule "third_party/sparse_sageattn_2"]
+	path = third_party/sparse_sageattn_2
+	url = git@github.com:Radioheading/Block-Sparse-SageAttention-2.0.git
