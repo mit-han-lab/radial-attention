@@ -3,6 +3,15 @@ import flashinfer
 import matplotlib.pyplot as plt
 from sparse_sageattn import sparse_sageattn
 from einops import rearrange, repeat
+from sageattention import sageattn
+from spas_sage_attn import block_sparse_sage2_attn_cuda
+
+# try to import block_sparse_sage2_attn_cuda from spas_sage_attn, if it fails, use the one from sparse_sageattn
+try:
+    from spas_sage_attn import block_sparse_sage2_attn_cuda
+except ImportError:
+    print("Using sparse_sageattn as block_sparse_sage2_attn_cuda")
+    from sparse_sageattn import sparse_sageattn as block_sparse_sage2_attn_cuda
 
 def sparge_mask_convert(mask: torch.Tensor, block_size: int = 128) -> torch.Tensor:
     assert block_size in [128, 64], "Radial Attention only supports block size of 128 or 64"
@@ -149,30 +158,28 @@ def gen_log_mask_shrinked(query, s, video_token_num, num_frame, block_size=128, 
     return final_log_mask
 
 class MaskMap:
+    _log_mask = None
 
     def __init__(self, video_token_num=25440, num_frame=16):
         self.video_token_num = video_token_num
         self.num_frame = num_frame
-        self.log_mask = None
 
     def queryLogMask(self, query, sparse_type, block_size=128, decay_factor=0.5, model_type=None):
-        log_mask = torch.ones((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
-        if self.log_mask is None:
-            self.log_mask = gen_log_mask_shrinked(query, query.shape[0], self.video_token_num, self.num_frame, sparse_type=sparse_type, decay_factor=decay_factor, model_type=model_type, block_size=block_size)
-        block_bound = self.video_token_num // block_size
-        log_mask[:block_bound, :block_bound] = self.log_mask[:block_bound, :block_bound]
-        return log_mask
+        if MaskMap._log_mask is None:
+            MaskMap._log_mask = torch.ones((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
+            block_bound = self.video_token_num // block_size
+            MaskMap._log_mask[:block_bound, :block_bound] = gen_log_mask_shrinked(query, query.shape[0], self.video_token_num, self.num_frame, sparse_type=sparse_type, decay_factor=decay_factor, model_type=model_type, block_size=block_size)
+            MaskMap._log_mask[:block_bound, :block_bound] = MaskMap._log_mask[:block_bound, :block_bound]
+        return MaskMap._log_mask
 
 def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre_defined_mask=None, block_size=128):
     if video_mask.all():
         # dense case
         kv_border = pre_defined_mask[0].sum() if pre_defined_mask is not None else key.shape[0]
-        output_video = sparse_sageattn(
-            query[:mask_map.video_token_num].unsqueeze(0),
+        output_video = sageattn(
+            query[:mask_map.video_token_num, :, :].unsqueeze(0),
             key[:kv_border, :, :].unsqueeze(0),
             value[:kv_border, :, :].unsqueeze(0),
-            mask_id=None,
-            is_causal=False,
             tensor_layout="NHD",
         )[0]
         
@@ -197,15 +204,14 @@ def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre
     converted_mask = converted_mask.to(torch.int8)
     if pre_defined_mask is None:
         # wan case
-        output = sparse_sageattn(
+        output = block_sparse_sage2_attn_cuda(
             query_hnd[:, :, :mask_map.video_token_num, :],
             key_hnd[:, :, :mask_map.video_token_num, :],
             value_hnd[:, :, :mask_map.video_token_num, :],
             mask_id=converted_mask,
-            is_causal=False,
             tensor_layout="HND",
         )
-        
+
         # rearrange back to (s, h, d), we know that b = 1
         output = rearrange(output, "b h s d -> s (b h) d", b=1)
         return output
@@ -215,12 +221,11 @@ def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre
     value_video = value_hnd
     kv_border = (pre_defined_mask[0].sum() + 63) // 64
     converted_mask[:, :, :, kv_border:] = False
-    output_video = sparse_sageattn(
+    output_video = block_sparse_sage2_attn_cuda(
         query_video,
         key_video,
         value_video,
         mask_id=converted_mask[:, :, :mask_map.video_token_num // block_size, :],
-        is_causal=False,
         tensor_layout="HND",
     )
     

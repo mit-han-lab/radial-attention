@@ -36,6 +36,12 @@ class WanSparseAttnProcessor2_0:
             image_context_length = encoder_hidden_states.shape[1] - 512
             encoder_hidden_states_img = encoder_hidden_states[:, :image_context_length]
             encoder_hidden_states = encoder_hidden_states[:, image_context_length:]
+        encoder_hidden_states_img = None
+        if attn.add_k_proj is not None:
+            # 512 is the context length of the text encoder, hardcoded for now
+            image_context_length = encoder_hidden_states.shape[1] - 512
+            encoder_hidden_states_img = encoder_hidden_states[:, :image_context_length]
+            encoder_hidden_states = encoder_hidden_states[:, image_context_length:]
         if encoder_hidden_states is None:
             encoder_hidden_states = hidden_states
 
@@ -54,14 +60,22 @@ class WanSparseAttnProcessor2_0:
 
         if rotary_emb is not None:
 
-            def apply_rotary_emb(hidden_states: torch.Tensor, freqs: torch.Tensor):
-                dtype = torch.float32 if hidden_states.device.type == "mps" else torch.float64
-                x_rotated = torch.view_as_complex(hidden_states.to(dtype).unflatten(3, (-1, 2)))
-                x_out = torch.view_as_real(x_rotated * freqs).flatten(3, 4)
-                return x_out.type_as(hidden_states)
+            def apply_rotary_emb(
+                hidden_states: torch.Tensor,
+                freqs_cos: torch.Tensor,
+                freqs_sin: torch.Tensor,
+            ):
+                x = hidden_states.view(*hidden_states.shape[:-1], -1, 2)
+                x1, x2 = x[..., 0], x[..., 1]
+                cos = freqs_cos[..., 0::2]
+                sin = freqs_sin[..., 1::2]
+                out = torch.empty_like(hidden_states)
+                out[..., 0::2] = x1 * cos - x2 * sin
+                out[..., 1::2] = x1 * sin + x2 * cos
+                return out.type_as(hidden_states)
 
-            query = apply_rotary_emb(query, rotary_emb)
-            key = apply_rotary_emb(key, rotary_emb)
+            query = apply_rotary_emb(query, *rotary_emb)
+            key = apply_rotary_emb(key, *rotary_emb)
 
         # I2V task
         hidden_states_img = None

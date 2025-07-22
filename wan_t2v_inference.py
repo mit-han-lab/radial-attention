@@ -4,8 +4,11 @@ from termcolor import colored
 
 import torch
 from diffusers import AutoencoderKLWan, WanPipeline
+from diffusers.hooks.group_offloading import apply_group_offloading
+from diffusers.models.transformers.transformer_wan import WanTransformer3DModel
 from diffusers.utils import export_to_video
 from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
+from transformers import UMT5EncoderModel
 import argparse
 
 from radial_attn.utils import set_seed
@@ -43,8 +46,26 @@ if __name__ == "__main__":
     model_id = "Wan-AI/Wan2.1-T2V-14B-Diffusers"
     vae = AutoencoderKLWan.from_pretrained(model_id, subfolder="vae", torch_dtype=torch.float32)
     flow_shift = args.flow_shift
+    text_encoder = UMT5EncoderModel.from_pretrained(model_id, subfolder="text_encoder", torch_dtype=torch.bfloat16)
     scheduler = UniPCMultistepScheduler(prediction_type='flow_prediction', use_flow_sigmas=True, num_train_timesteps=1000, flow_shift=flow_shift)
-    pipe = WanPipeline.from_pretrained(model_id, vae=vae, torch_dtype=torch.bfloat16)
+    transformer = WanTransformer3DModel.from_pretrained(model_id, subfolder="transformer", torch_dtype=torch.bfloat16)
+    
+    if args.use_model_offload:
+        print("Using model offloading for memory efficiency")
+        apply_group_offloading(text_encoder,
+            onload_device=torch.device("cuda"),
+            offload_device=torch.device("cpu"),
+            offload_type="block_level",
+            num_blocks_per_group=4
+        )
+        transformer.enable_group_offload(
+            onload_device=torch.device("cuda"),
+            offload_device=torch.device("cpu"),
+            offload_type="leaf_level",
+            use_stream=True,
+        )
+
+    pipe = WanPipeline.from_pretrained(model_id, text_encoder=text_encoder, transformer=transformer, vae=vae, torch_dtype=torch.bfloat16)
     pipe.scheduler = scheduler
     if args.lora_checkpoint_dir is not None:
         pipe.load_lora_weights(
@@ -52,12 +73,7 @@ if __name__ == "__main__":
             weight_name=args.lora_checkpoint_name,
         )
         
-        
-    if args.use_model_offload:
-        print("Using model offloading for memory efficiency")
-        pipe.enable_sequential_cpu_offload()
-    else:
-        pipe.to("cuda")
+    pipe.to("cuda")
 
     if args.prompt is None:
         print(colored("Using default prompt", "red"))

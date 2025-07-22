@@ -4,6 +4,8 @@ dense_timesteps=12
 
 prompt=$(cat examples/prompt.txt)
 
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 python wan_t2v_inference.py \
     --prompt "$prompt" \
     --height 768 \
