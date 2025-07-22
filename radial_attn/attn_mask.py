@@ -158,19 +158,19 @@ def gen_log_mask_shrinked(query, s, video_token_num, num_frame, block_size=128, 
     return final_log_mask
 
 class MaskMap:
+    _log_mask = None
 
     def __init__(self, video_token_num=25440, num_frame=16):
         self.video_token_num = video_token_num
         self.num_frame = num_frame
-        self.log_mask = None
 
     def queryLogMask(self, query, sparse_type, block_size=128, decay_factor=0.5, model_type=None):
-        log_mask = torch.ones((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
-        if self.log_mask is None:
-            self.log_mask = gen_log_mask_shrinked(query, query.shape[0], self.video_token_num, self.num_frame, sparse_type=sparse_type, decay_factor=decay_factor, model_type=model_type, block_size=block_size)
-        block_bound = self.video_token_num // block_size
-        log_mask[:block_bound, :block_bound] = self.log_mask[:block_bound, :block_bound]
-        return log_mask
+        if MaskMap._log_mask is None:
+            MaskMap._log_mask = torch.ones((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
+            block_bound = self.video_token_num // block_size
+            MaskMap._log_mask[:block_bound, :block_bound] = gen_log_mask_shrinked(query, query.shape[0], self.video_token_num, self.num_frame, sparse_type=sparse_type, decay_factor=decay_factor, model_type=model_type, block_size=block_size)
+            MaskMap._log_mask[:block_bound, :block_bound] = MaskMap._log_mask[:block_bound, :block_bound]
+        return MaskMap._log_mask
 
 def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre_defined_mask=None, block_size=128):
     if video_mask.all():
