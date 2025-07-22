@@ -2,6 +2,8 @@
 
 ### [Paper](https://arxiv.org/abs/2506.19852) | [Website](https://hanlab.mit.edu/projects/radial-attention)
 
+**[2025-07-22]** Radial Attention is now compatible with [SageAttention](https://github.com/thu-ml/SageAttention) version 2!
+
 **[2025-07-14]** Radial Attention is now compatible with [SageAttention](https://github.com/thu-ml/SageAttention) version 1!
 
 **[2025-07-03]** Radial Attention now supports [Wan2.1_14B_FusionX LoRA](https://huggingface.co/vrgamedevgirl84/Wan14BT2VFusioniX)! You can get high-quality videos within just 8 steps (90 seconds on a single H100 GPU)!
@@ -83,8 +85,16 @@ pip install flash-attn --no-build-isolation
 pip install flashinfer-python -i https://flashinfer.ai/whl/cu124/torch2.5/
 
 # 5. (Optional) Install Sparse_SageAttention for further acceleration
-cd third_party/sparse_sageattn
+cd third_party/SageAttention/ # install SageAttention
+export EXT_PARALLEL=4 NVCC_APPEND_FLAGS="--threads 8" MAX_JOBS=32 # parallel compiling (Optional)
+python setup.py install  # or pip install -e .
+cd ../..
+cd third_party/sparse_sageattn # if you want to use Radial Attention with SageAttention v1 backend
 python setup.py install
+cd ../..
+cd third_party/sparse_sageattn_2 # if you want to use Radial Attention with SageAttention v2 backend
+pip install ninja   # for parallel compilation
+python setup.py install   # or pip install -e .
 cd ../..
 ```
 
