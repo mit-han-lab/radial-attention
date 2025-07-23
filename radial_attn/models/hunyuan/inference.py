@@ -26,6 +26,17 @@ def replace_hunyuan_attention(
     AttnModule.decay_factor = decay_factor
     AttnModule.sparse_type = sparsity_type
     AttnModule.use_sage_attention = use_sage_attention
+    
+    try:
+        import flashinfer
+        AttnModule.use_flashinfer = True
+    except ImportError:
+        AttnModule.use_flashinfer = False
+        # fall back to normal flexattention for sparse attention and torch.SDPA for dense attention
+        if use_sage_attention:
+            AttnModule.use_flexattention = True
+        else:
+            AttnModule.use_sdpa = True
 
     print(f"Replacing Hunyuan attention with {sparsity_type} attention")
     print(f"video token num: {AttnModule.mask_map.video_token_num}, num frames: {num_frames}")
