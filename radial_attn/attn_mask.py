@@ -223,7 +223,7 @@ def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre
         query_video,
         key_video,
         value_video,
-        mask_id=converted_mask[:, :, :mask_map.video_token_num // block_size, :],
+        mask_id=converted_mask[:, :, :mask_map.video_token_num // block_size, :].contiguous(),
         tensor_layout="HND",
     )
     
