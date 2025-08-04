@@ -21,7 +21,7 @@ python wan_t2v_inference.py \
     --flow_shift 2.0 \
     --lora_checkpoint_dir "Kijai/WanVideo_comfy" \
     --lora_checkpoint_name "Lightx2v/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank256_bf16.safetensors" \
-    --prompt "an aerial view of a bustling city at night, with lights radiating outwards from a central point, symbolizing the flow of attention. As the camera zooms in, we transition to a scene where pedestrians and vehicles move in synchronized patterns, guided by an invisible radial force emanating from a central hub." \
+    --prompt "The camera rotates around a large stack of vintage televisions all showing different programs — 1950s sci-fi movies, horror movies, news, static, a 1970s sitcom, etc, set inside a large New York museum gallery." \
     --use_model_offload \
     --use_sage_attention \
 
