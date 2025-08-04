@@ -20,16 +20,29 @@ class WanTransformerBlock_Sparse(WanTransformerBlock):
         encoder_hidden_states: torch.Tensor,
         temb: torch.Tensor,
         rotary_emb: torch.Tensor,
-        timestep: int = 0,
         numeral_timestep: Optional[int] = None,
     ) -> torch.Tensor:
-        shift_msa, scale_msa, gate_msa, c_shift_msa, c_scale_msa, c_gate_msa = (
-            self.scale_shift_table + temb.float()
-        ).chunk(6, dim=1)
+        if temb.ndim == 4:
+            # temb: batch_size, seq_len, 6, inner_dim (wan2.2 ti2v)
+            shift_msa, scale_msa, gate_msa, c_shift_msa, c_scale_msa, c_gate_msa = (
+                self.scale_shift_table.unsqueeze(0) + temb.float()
+            ).chunk(6, dim=2)
+            # batch_size, seq_len, 1, inner_dim
+            shift_msa = shift_msa.squeeze(2)
+            scale_msa = scale_msa.squeeze(2)
+            gate_msa = gate_msa.squeeze(2)
+            c_shift_msa = c_shift_msa.squeeze(2)
+            c_scale_msa = c_scale_msa.squeeze(2)
+            c_gate_msa = c_gate_msa.squeeze(2)
+        else:
+            # temb: batch_size, 6, inner_dim (wan2.1/wan2.2 14B)
+            shift_msa, scale_msa, gate_msa, c_shift_msa, c_scale_msa, c_gate_msa = (
+                self.scale_shift_table + temb.float()
+            ).chunk(6, dim=1)
 
         # 1. Self-attention
         norm_hidden_states = (self.norm1(hidden_states.float()) * (1 + scale_msa) + shift_msa).type_as(hidden_states)
-        attn_output = self.attn1(hidden_states=norm_hidden_states, rotary_emb=rotary_emb, timestep=timestep, numeral_timestep=numeral_timestep)
+        attn_output = self.attn1(hidden_states=norm_hidden_states, rotary_emb=rotary_emb, numerical_timestep=numeral_timestep)
         hidden_states = (hidden_states.float() + attn_output * gate_msa).type_as(hidden_states)
 
         # 2. Cross-attention
@@ -83,10 +96,23 @@ class WanTransformer3DModel_Sparse(WanTransformer3DModel):
         hidden_states = self.patch_embedding(hidden_states)
         hidden_states = hidden_states.flatten(2).transpose(1, 2)
 
+        # timestep shape: batch_size, or batch_size, seq_len (wan 2.2 ti2v)
+        if timestep.ndim == 2:
+            ts_seq_len = timestep.shape[1]
+            timestep = timestep.flatten() # batch_size * seq_len
+        else:
+            ts_seq_len = None
+
         temb, timestep_proj, encoder_hidden_states, encoder_hidden_states_image = self.condition_embedder(
-            timestep, encoder_hidden_states, encoder_hidden_states_image
+            timestep, encoder_hidden_states, encoder_hidden_states_image, timestep_seq_len=ts_seq_len
         )
-        timestep_proj = timestep_proj.unflatten(1, (6, -1))
+        
+        if ts_seq_len is not None:
+            # batch_size, seq_len, 6, inner_dim
+            timestep_proj = timestep_proj.unflatten(2, (6, -1))
+        else:
+            # batch_size, 6, inner_dim
+            timestep_proj = timestep_proj.unflatten(1, (6, -1))
 
         if encoder_hidden_states_image is not None:
             encoder_hidden_states = torch.concat([encoder_hidden_states_image, encoder_hidden_states], dim=1)
@@ -95,7 +121,7 @@ class WanTransformer3DModel_Sparse(WanTransformer3DModel):
         if torch.is_grad_enabled() and self.gradient_checkpointing:
             for block in self.blocks:
                 hidden_states = self._gradient_checkpointing_func(
-                    block, hidden_states, encoder_hidden_states, timestep_proj, rotary_emb, timestep=timestep, numeral_timestep=numeral_timestep
+                    block, hidden_states, encoder_hidden_states, timestep_proj, rotary_emb, numeral_timestep=numeral_timestep
                 )
         else:
             for block in self.blocks:
@@ -104,13 +130,19 @@ class WanTransformer3DModel_Sparse(WanTransformer3DModel):
                     encoder_hidden_states, 
                     timestep_proj, 
                     rotary_emb,
-                    timestep=timestep,
                     numeral_timestep=numeral_timestep,
                 )
 
         # 5. Output norm, projection & unpatchify
-        shift, scale = (self.scale_shift_table + temb.unsqueeze(1)).chunk(2, dim=1)
-
+        if temb.ndim == 3:
+            # batch_size, seq_len, inner_dim (wan 2.2 ti2v)
+            shift, scale = (self.scale_shift_table.unsqueeze(0) + temb.unsqueeze(2)).chunk(2, dim=2)
+            shift = shift.squeeze(2)
+            scale = scale.squeeze(2)
+        else:
+            # batch_size, inner_dim
+            shift, scale = (self.scale_shift_table + temb.unsqueeze(1)).chunk(2, dim=1)
+            
         # Move the shift and scale tensors to the same device as hidden_states.
         # When using multi-GPU inference via accelerate these will be on the
         # first device rather than the last device, which hidden_states ends up
