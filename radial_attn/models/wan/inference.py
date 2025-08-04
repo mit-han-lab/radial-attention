@@ -1,6 +1,7 @@
 import torch
 from diffusers.models.attention_processor import Attention
-from .attention import WanSparseAttnProcessor2_0 
+from diffusers.models.attention import AttentionModuleMixin
+from .attention import WanSparseAttnProcessor 
 from .sparse_transformer import replace_sparse_forward
 from ...attn_mask import MaskMap
 
@@ -20,7 +21,7 @@ def replace_wan_attention(
     mod_value = pipe.vae_scale_factor_spatial * pipe.transformer.config.patch_size[1]
     frame_size = int(height // mod_value) * int(width // mod_value)
     
-    AttnModule = WanSparseAttnProcessor2_0
+    AttnModule = WanSparseAttnProcessor
     AttnModule.dense_block = dense_layers
     AttnModule.dense_timestep = dense_timesteps
     AttnModule.mask_map = MaskMap(video_token_num=frame_size * num_frames, num_frame=num_frames)
@@ -36,6 +37,6 @@ def replace_wan_attention(
         m.attn1.processor.layer_idx = layer_idx
         
     for _, m in pipe.transformer.named_modules():
-        if isinstance(m, Attention) and hasattr(m.processor, "layer_idx"):
+        if isinstance(m, AttentionModuleMixin) and hasattr(m.processor, 'layer_idx'):
             layer_idx = m.processor.layer_idx
             m.set_processor(AttnModule(layer_idx))
