@@ -167,9 +167,7 @@ class MaskMap:
     def queryLogMask(self, query, sparse_type, block_size=128, decay_factor=0.5, model_type=None):
         if MaskMap._log_mask is None:
             MaskMap._log_mask = torch.ones((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
-            block_bound = self.video_token_num // block_size
-            MaskMap._log_mask[:block_bound, :block_bound] = gen_log_mask_shrinked(query, query.shape[0], self.video_token_num, self.num_frame, sparse_type=sparse_type, decay_factor=decay_factor, model_type=model_type, block_size=block_size)
-            MaskMap._log_mask[:block_bound, :block_bound] = MaskMap._log_mask[:block_bound, :block_bound]
+            MaskMap._log_mask = gen_log_mask_shrinked(query, query.shape[0], self.video_token_num, self.num_frame, sparse_type=sparse_type, decay_factor=decay_factor, model_type=model_type, block_size=block_size)
         return MaskMap._log_mask
 
 def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre_defined_mask=None, block_size=128):
