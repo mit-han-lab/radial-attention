@@ -21,7 +21,7 @@ python wan_t2v_inference.py \
     --flow_shift 8.0 \
     --lora_checkpoint_dir "Kijai/WanVideo_comfy" \
     --lora_checkpoint_name "Lightx2v/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank256_bf16.safetensors" \
-    --prompt "Reflections in the window of a train traveling through the Tokyo suburbs." \
-    --use_model_offload \
+    --prompt "A Samoyed and a Golden Retriever dog are playfully romping through a futuristic neon city at night. The neon lights emitted from the nearby buildings glistens off of their fur." \
     --use_sage_attention \
+    # --use_model_offload \
 
