@@ -2,7 +2,7 @@
 
 ### [Paper](https://arxiv.org/abs/2506.19852) | [Website](https://hanlab.mit.edu/projects/radial-attention)
 
-**[2025-08-04]** Radial Attention is now supports [Lightx2v](https://github.com/ModelTC/LightX2V), a 4-step LoRA. You can get high-fidelity videos with Radial Attention, Sage Attention and Lightx2v in **90 seconds with a single 4090 GPU!**
+**[2025-08-04]** Radial Attention is now supports [Lightx2v](https://github.com/ModelTC/LightX2V), a 4-step LoRA. Radial Attention also supports [SageAttention2++](https://arxiv.org/abs/2505.21136) for FP8 Matmul accumulation on 4090. With the joint effort of **Radial Attention, SageAttention and Lightx2v LoRA**, now it only takes **33/90 seconds to generate a high-fidelity video for Wan2.1 on a single H100/4090 GPU respectively!**.
 
 **[2025-07-22]** Radial Attention is now compatible with [SageAttention](https://github.com/thu-ml/SageAttention) version 2!
 
