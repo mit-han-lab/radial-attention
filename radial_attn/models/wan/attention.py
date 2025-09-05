@@ -11,7 +11,7 @@ from torch.nn.attention import sdpa_kernel, SDPBackend
 import torch.distributed as dist
 
 try:
-    from xfuser.core.distributed import get_ulysses_parallel_world_size,get_ulysses_parallel_rank,get_sp_group
+    from xfuser.core.distributed import get_ulysses_parallel_world_size
     from xfuser.model_executor.layers.usp import _ft_c_input_all_to_all, _ft_c_output_all_to_all
 except:
     pass

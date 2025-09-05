@@ -50,21 +50,10 @@ class WanTransformerBlock_Sparse(WanTransformerBlock):
                 self.scale_shift_table + temb.float()
             ).chunk(6, dim=1)
 
-        # if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
-        #     # split video latents on dim TS
-        #     hidden_states = torch.chunk(hidden_states, get_ulysses_parallel_world_size(), dim=-2)[get_ulysses_parallel_rank()]
-        #     rotary_emb = (
-        #         torch.chunk(rotary_emb[0], get_ulysses_parallel_world_size(), dim=1)[get_ulysses_parallel_rank()],
-        #         torch.chunk(rotary_emb[1], get_ulysses_parallel_world_size(), dim=1)[get_ulysses_parallel_rank()],
-        #     ) 
-
         # 1. Self-attention
         norm_hidden_states = (self.norm1(hidden_states.float()) * (1 + scale_msa) + shift_msa).type_as(hidden_states)
         attn_output = self.attn1(hidden_states=norm_hidden_states, rotary_emb=rotary_emb, numerical_timestep=numeral_timestep)
         hidden_states = (hidden_states.float() + attn_output * gate_msa).type_as(hidden_states).contiguous()
-
-        # if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
-        #     hidden_states = get_sp_group().all_gather(hidden_states.contiguous(), dim=-2)
 
         # 2. Cross-attention
         norm_hidden_states = self.norm2(hidden_states.float()).type_as(hidden_states)
