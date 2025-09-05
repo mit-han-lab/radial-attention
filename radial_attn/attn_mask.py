@@ -341,6 +341,9 @@ def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", bl
             num_qo_heads=num_head,
             num_kv_heads=num_head,
             head_dim=hidden_dim,
+            q_data_type=query.dtype,
+            kv_data_type=key.dtype,
+            o_data_type=query.dtype,
         )
         
         return FlashInferBackend(query, key, value, mask_map, pre_defined_mask, bsr_wrapper)
