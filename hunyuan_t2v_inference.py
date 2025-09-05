@@ -51,9 +51,49 @@ if __name__ == "__main__":
     
     parser.add_argument("--use_model_offload", action="store_true",
                         help="Enable model offloading to CPU for memory efficiency")
-    
+
+    # Parallel inference parameters
+    parser.add_argument("--use_sequence_parallel", action="store_true",
+                                help="Enable sequence parallelism for parallel inference")
+    parser.add_argument("--ulysses_degree", type=int, default=2,
+                                help="The number of ulysses parallel")
+
     args = parser.parse_args()
-    
+
+    if args.use_sequence_parallel:
+        import torch.distributed as dist
+        rank = int(os.getenv("RANK", 0))
+        world_size = int(os.getenv("WORLD_SIZE", 1))
+        local_rank = int(os.getenv("LOCAL_RANK", 0))
+        device = local_rank
+
+        if world_size > 1:
+            torch.cuda.set_device(local_rank)
+            dist.init_process_group(
+                backend="nccl",
+                init_method="env://",
+                rank=rank,
+                world_size=world_size)
+
+            if args.ulysses_degree > 1 and world_size == args.ulysses_degree:
+                from xfuser.core.distributed import (
+                    init_distributed_environment,
+                    initialize_model_parallel,
+                )
+
+                init_distributed_environment(
+                    rank=dist.get_rank(), world_size=dist.get_world_size())
+
+                initialize_model_parallel(
+                    sequence_parallel_degree=dist.get_world_size(),
+                    ring_degree=1,
+                    ulysses_degree=args.ulysses_degree,
+                )
+            else:
+                assert "only ulysses parallelism is supported now"
+        else:
+            assert "parallel world_size must bigger than 1"
+
     set_seed(args.seed)
     
     replace_sparse_forward()

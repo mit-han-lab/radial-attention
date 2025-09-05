@@ -6,6 +6,13 @@ from ...attn_mask import RadialAttention
 from typing import Optional
 from diffusers.models.embeddings import apply_rotary_emb
 from torch.nn.attention import sdpa_kernel, SDPBackend
+import torch.distributed as dist
+
+try:
+    from xfuser.core.distributed import get_ulysses_parallel_world_size
+    from xfuser.model_executor.layers.usp import _ft_c_input_all_to_all, _ft_c_output_all_to_all
+except:
+    pass
 
 class HunyuanVideoAttnSparseProcessor2_0:
     mask_map = None
@@ -22,6 +29,10 @@ class HunyuanVideoAttnSparseProcessor2_0:
             )
             
         self.layer_idx = layer_idx
+        self.use_sp = False
+
+        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+            self.use_sp = True
 
     def __call__(
         self,
@@ -94,7 +105,32 @@ class HunyuanVideoAttnSparseProcessor2_0:
 
         # 5. Attention
         # print(f"numeral_timestep: {numeral_timestep}, dense_timestep: {self.dense_timestep}, layer_idx: {self.layer_idx}, dense_block: {self.dense_block}, sparse_type: {self.sparse_type}")
-        pre_defined_mask=attention_mask[0, 0].expand(query.shape[2], query.shape[2])
+
+        if self.use_sp:
+            # input qkv ulysses all_to_all comm
+            text_seq_length = encoder_hidden_states.size(1)
+            # Ugly but useful for MMDiT. TODO: handle layout inside all_to_all for cleaner code
+            # for sparse attention,the layout of sequence must be [video_1, video_2, ..., text_1, text_2, ...],
+            # [video_1, text_1, video_2, text_2, ...] will lead to different attention map
+            query_text = query[:, :, -text_seq_length:, :]
+            query_video = query[:, :, :-text_seq_length, :]
+            query_text = _ft_c_input_all_to_all(query_text)
+            query_video = _ft_c_input_all_to_all(query_video)
+            query = torch.cat([query_video, query_text], dim=-2)
+
+            key_text = key[:, :, -text_seq_length:, :]
+            key_video = key[:, :, :-text_seq_length, :]
+            key_text = _ft_c_input_all_to_all(key_text)
+            key_video = _ft_c_input_all_to_all(key_video)
+            key = torch.cat([key_video, key_text], dim=-2)
+
+            value_text = value[:, :, -text_seq_length:, :]
+            value_video = value[:, :, :-text_seq_length, :]
+            value_text = _ft_c_input_all_to_all(value_text)
+            value_video = _ft_c_input_all_to_all(value_video)
+            value = torch.cat([value_video, value_text], dim=-2)
+
+        pre_defined_mask = attention_mask[0, 0].expand(query.shape[2], query.shape[2])
         batch_size = query.shape[0]
         query = rearrange(query, "b h s d" " -> (b s) h d").contiguous()
         key = rearrange(key, "b h s d" " -> (b s) h d").contiguous()
@@ -104,7 +140,6 @@ class HunyuanVideoAttnSparseProcessor2_0:
             hidden_states = RadialAttention(
                 query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="dense", block_size=128, decay_factor=self.decay_factor, model_type="hunyuan", pre_defined_mask=pre_defined_mask, use_sage_attention=self.use_sage_attention
             )
-            
         else:
             # apply radial attention
             hidden_states = RadialAttention(
@@ -112,6 +147,16 @@ class HunyuanVideoAttnSparseProcessor2_0:
             )
             
         hidden_states = rearrange(hidden_states, "(b s) h d -> b h s d", b=batch_size)
+
+        if self.use_sp:
+            # output o ulysses all_to_all comm
+            out = hidden_states
+            out_text = out[:, :, -get_ulysses_parallel_world_size() * text_seq_length:, :]
+            out_latents = out[:, :, : -get_ulysses_parallel_world_size() * text_seq_length, :]
+            out_text = _ft_c_output_all_to_all(out_text)
+            out_latents = _ft_c_output_all_to_all(out_latents)
+            hidden_states = torch.cat([out_latents, out_text], dim=-2)
+
         hidden_states = hidden_states.transpose(1, 2).flatten(2, 3)
         hidden_states = hidden_states.to(query.dtype)
 
