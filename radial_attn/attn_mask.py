@@ -235,11 +235,23 @@ def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre
     value_video = value_hnd
     kv_border = (pre_defined_mask[0].sum() + 63) // 64
     converted_mask[:, :, :, kv_border:] = False
+
+    if arch == 'sm90':
+        # mask has been repeated at query_idx in sparge_mask_convert() : [video_mask, text_mask, viedo_mask_repeat, text_mask_repeat]
+        # now we have to fetch the video parts for sparse_sage2_cuda() : [video_mask, viedo_mask_repeat]
+        mask_id = torch.cat(
+            [converted_mask[:,:,:mask_map.video_token_num // block_size,:], 
+            converted_mask[:,:,converted_mask.shape[3]:converted_mask.shape[3] + mask_map.video_token_num // block_size,:]],
+            dim=2
+        ).contiguous()
+    else:
+        mask_id = converted_mask[:, :, :mask_map.video_token_num // block_size, :].contiguous()
+
     output_video = block_sparse_sage2_attn_cuda(
         query_video,
         key_video,
         value_video,
-        mask_id=converted_mask[:, :, :mask_map.video_token_num // block_size, :].contiguous(),
+        mask_id=mask_id,
         tensor_layout="HND",
     )
     
