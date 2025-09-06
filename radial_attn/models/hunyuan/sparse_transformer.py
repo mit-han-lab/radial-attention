@@ -10,6 +10,16 @@ from diffusers.pipelines.hunyuan_video.pipeline_output import HunyuanVideoPipeli
 from diffusers.pipelines.hunyuan_video.pipeline_hunyuan_video import retrieve_timesteps
 import numpy as np
 
+import torch.distributed as dist
+try:
+    from xfuser.core.distributed import (
+        get_ulysses_parallel_world_size,
+        get_ulysses_parallel_rank,
+        get_sp_group
+    )
+except:
+    pass
+
 if is_torch_xla_available():
     import torch_xla.core.xla_model as xm
     XLA_AVAILABLE = True
@@ -184,6 +194,15 @@ class HunyuanVideoTransformer3DModelSparse(HunyuanVideoTransformer3DModel):
         attention_mask = attention_mask.masked_fill(mask_indices, False)
         attention_mask = attention_mask.unsqueeze(1).unsqueeze(1)  # [B, 1, 1, N]
 
+        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+            encoder_hidden_states = torch.chunk(encoder_hidden_states, get_ulysses_parallel_world_size(), dim=-2)[get_ulysses_parallel_rank()]
+            # split video latents on sequence dimension
+            hidden_states = torch.chunk(hidden_states, get_ulysses_parallel_world_size(), dim=-2)[get_ulysses_parallel_rank()]
+            image_rotary_emb = (
+                torch.chunk(image_rotary_emb[0], get_ulysses_parallel_world_size(), dim=-2)[get_ulysses_parallel_rank()],
+                torch.chunk(image_rotary_emb[1], get_ulysses_parallel_world_size(), dim=-2)[get_ulysses_parallel_rank()],
+            )
+
         # 4. Transformer blocks
         if torch.is_grad_enabled() and self.gradient_checkpointing:
             for block in self.transformer_blocks:
@@ -244,6 +263,10 @@ class HunyuanVideoTransformer3DModelSparse(HunyuanVideoTransformer3DModel):
         # 5. Output projection
         hidden_states = self.norm_out(hidden_states, temb)
         hidden_states = self.proj_out(hidden_states)
+
+        # gather latents on sequence dimension
+        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+            hidden_states = get_sp_group().all_gather(hidden_states, dim=-2)
 
         hidden_states = hidden_states.reshape(
             batch_size, post_patch_num_frames, post_patch_height, post_patch_width, -1, p_t, p, p

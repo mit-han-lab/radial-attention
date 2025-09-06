@@ -12,6 +12,16 @@ logger = logging.get_logger(__name__)
 from typing import Any, Callable, Dict, List, Optional, Union
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.pipelines.wan.pipeline_output import WanPipelineOutput
+import torch.distributed as dist
+
+try:
+    from xfuser.core.distributed import (
+        get_ulysses_parallel_world_size,
+        get_ulysses_parallel_rank,
+        get_sp_group
+    )
+except:
+    pass
 
 class WanTransformerBlock_Sparse(WanTransformerBlock):
     def forward(
@@ -43,7 +53,7 @@ class WanTransformerBlock_Sparse(WanTransformerBlock):
         # 1. Self-attention
         norm_hidden_states = (self.norm1(hidden_states.float()) * (1 + scale_msa) + shift_msa).type_as(hidden_states)
         attn_output = self.attn1(hidden_states=norm_hidden_states, rotary_emb=rotary_emb, numerical_timestep=numeral_timestep)
-        hidden_states = (hidden_states.float() + attn_output * gate_msa).type_as(hidden_states)
+        hidden_states = (hidden_states.float() + attn_output * gate_msa).type_as(hidden_states).contiguous()
 
         # 2. Cross-attention
         norm_hidden_states = self.norm2(hidden_states.float()).type_as(hidden_states)
@@ -117,6 +127,14 @@ class WanTransformer3DModel_Sparse(WanTransformer3DModel):
         if encoder_hidden_states_image is not None:
             encoder_hidden_states = torch.concat([encoder_hidden_states_image, encoder_hidden_states], dim=1)
 
+        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+            # split video latents on dim TS
+            hidden_states = torch.chunk(hidden_states, get_ulysses_parallel_world_size(), dim=-2)[get_ulysses_parallel_rank()]
+            rotary_emb = (
+                torch.chunk(rotary_emb[0], get_ulysses_parallel_world_size(), dim=1)[get_ulysses_parallel_rank()],
+                torch.chunk(rotary_emb[1], get_ulysses_parallel_world_size(), dim=1)[get_ulysses_parallel_rank()],
+            )
+
         # 4. Transformer blocks
         if torch.is_grad_enabled() and self.gradient_checkpointing:
             for block in self.blocks:
@@ -152,6 +170,9 @@ class WanTransformer3DModel_Sparse(WanTransformer3DModel):
 
         hidden_states = (self.norm_out(hidden_states.float()) * (1 + scale) + shift).type_as(hidden_states)
         hidden_states = self.proj_out(hidden_states)
+
+        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+            hidden_states = get_sp_group().all_gather(hidden_states, dim=-2)
 
         hidden_states = hidden_states.reshape(
             batch_size, post_patch_num_frames, post_patch_height, post_patch_width, p_t, p_h, p_w, -1

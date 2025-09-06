@@ -8,6 +8,13 @@ from diffusers.models.transformers.transformer_wan import WanAttention, _get_qkv
 from einops import rearrange
 from ...attn_mask import RadialAttention
 from torch.nn.attention import sdpa_kernel, SDPBackend
+import torch.distributed as dist
+
+try:
+    from xfuser.core.distributed import get_ulysses_parallel_world_size
+    from xfuser.model_executor.layers.usp import _ft_c_input_all_to_all, _ft_c_output_all_to_all
+except:
+    pass
 
 class Wan22SparseAttnProcessor:
     """
@@ -27,6 +34,10 @@ class Wan22SparseAttnProcessor:
                 "Wan22SparseAttnProcessor requires PyTorch 2.0. To use it, please upgrade PyTorch to version 2.0 or higher."
             )
         self.layer_idx = layer_idx
+        self.use_sp = False
+
+        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+            self.use_sp = True
 
     def __call__(
         self,
@@ -105,22 +116,65 @@ class Wan22SparseAttnProcessor:
                 timestep_value = numerical_timestep.item() if numerical_timestep.numel() == 1 else numerical_timestep[0].item()
             
             if timestep_value < self.dense_timestep or self.layer_idx < self.dense_block or self.sparse_type == "dense":
+                if self.use_sp:
+                    batch_size = query.shape[0]
+                    # Ugly but useful now. TODO: modify all_to_all fuc of xdit to handle different layouts
+                    query = rearrange(query, "b s h d" " -> b h s d").contiguous()
+                    key = rearrange(key, "b s h d" " -> b h s d").contiguous()
+                    value = rearrange(value, "b s h d" " -> b h s d").contiguous()
+                    
+                    # input all_to_all comm needs [b h s d] layout
+                    query = _ft_c_input_all_to_all(query)
+                    key = _ft_c_input_all_to_all(key)
+                    value = _ft_c_input_all_to_all(value)
+
+                    query = rearrange(query, "b h s d" " -> b s h d").contiguous()
+                    key = rearrange(key, "b h s d" " -> b s h d").contiguous()
+                    value = rearrange(value, "b h s d" " -> b s h d").contiguous()
+
                 hidden_states = dispatch_attention_fn(
                     query=query, key=key, value=value,
                     attn_mask=attention_mask, dropout_p=0.0, is_causal=False, backend=self._attention_backend,
                 )
+
+                if self.use_sp:
+                    hidden_states = rearrange(hidden_states.contiguous(), "b s h d -> b h s d", b=batch_size).contiguous()
+                    # output all_to_all comm needs [b h s d] layout
+                    hidden_states = _ft_c_output_all_to_all(hidden_states)
+                    hidden_states = rearrange(hidden_states, "b h s d -> b s h d", b=batch_size).contiguous()
             else:
                 batch_size = query.shape[0]
-                # transform (batch_size, num_heads, seq_len, head_dim) to (seq_len * batch_size, num_heads, head_dim)
-                query = rearrange(query, "b s h d -> (b s) h d")
-                key = rearrange(key, "b s h d -> (b s) h d")
-                value = rearrange(value, "b s h d -> (b s) h d")
+                if self.use_sp:
+                    # Ugly but useful now. TODO: modify all_to_all fuc of xdit to handle different layouts
+                    query = rearrange(query, "b s h d" " -> b h s d").contiguous()
+                    key = rearrange(key, "b s h d" " -> b h s d").contiguous()
+                    value = rearrange(value, "b s h d" " -> b h s d").contiguous()
+                    
+                    # input all_to_all comm needs [b h s d] layout
+                    query = _ft_c_input_all_to_all(query)
+                    key = _ft_c_input_all_to_all(key)
+                    value = _ft_c_input_all_to_all(value)
+
+                    query = rearrange(query, "b h s d -> (b s) h d").contiguous()
+                    key = rearrange(key, "b h s d -> (b s) h d").contiguous()
+                    value = rearrange(value, "b h s d -> (b s) h d").contiguous()
+                else:
+                    query = rearrange(query, "b s h d -> (b s) h d")
+                    key = rearrange(key, "b s h d -> (b s) h d")
+                    value = rearrange(value, "b s h d -> (b s) h d")
+                
                 # apply radial attention
                 hidden_states = RadialAttention(
                     query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="radial", block_size=64, decay_factor=self.decay_factor, model_type="wan", pre_defined_mask=None, use_sage_attention=self.use_sage_attention
                 )
-                # transform back to (batch_size, num_heads, seq_len, head_dim)
-                hidden_states = rearrange(hidden_states, "(b s) h d -> b s h d", b=batch_size)
+
+                if self.use_sp:
+                    hidden_states = rearrange(hidden_states.contiguous(), "(b s) h d -> b h s d", b=batch_size).contiguous()
+                    # output all_to_all comm needs [b h s d] layout
+                    hidden_states = _ft_c_output_all_to_all(hidden_states)
+                    hidden_states = rearrange(hidden_states, "b h s d -> b s h d", b=batch_size).contiguous()
+                else:
+                    hidden_states = rearrange(hidden_states, "(b s) h d -> b s h d", b=batch_size)
 
         hidden_states = hidden_states.flatten(2, 3)
         hidden_states = hidden_states.type_as(query)
@@ -147,7 +201,10 @@ class Wan22SparseAttnProcessor2_0:
     def __init__(self, layer_idx):
         if not hasattr(F, "scaled_dot_product_attention"):
             raise ImportError("Wan22SparseAttnProcessor2_0 requires PyTorch 2.0. To use it, please upgrade PyTorch to 2.0.")
-        self.layer_idx = layer_idx
+        self.use_sp = False
+
+        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+            self.use_sp = True
         
     def __call__(
         self,
@@ -223,10 +280,25 @@ class Wan22SparseAttnProcessor2_0:
                 )
         else: # this is the case for sparse attention
             batch_size = query.shape[0]
-            # transform (batch_size, num_heads, seq_len, head_dim) to (seq_len * batch_size, num_heads, head_dim)
-            query = rearrange(query, "b h s d -> (b s) h d")
-            key = rearrange(key, "b h s d -> (b s) h d")
-            value = rearrange(value, "b h s d -> (b s) h d")
+            if self.use_sp:
+                batch_size = query.shape[0]
+                # Ugly but useful now. TODO: modify all_to_all fuc of xdit to handle different layouts
+                query = rearrange(query, "b s h d" " -> b h s d").contiguous()
+                key = rearrange(key, "b s h d" " -> b h s d").contiguous()
+                value = rearrange(value, "b s h d" " -> b h s d").contiguous()
+                
+                # input all_to_all comm needs [b h s d] layout
+                query = _ft_c_input_all_to_all(query)
+                key = _ft_c_input_all_to_all(key)
+                value = _ft_c_input_all_to_all(value)
+
+                query = rearrange(query, "b h s d -> (b s) h d").contiguous()
+                key = rearrange(key, "b h s d -> (b s) h d").contiguous()
+                value = rearrange(value, "b h s d -> (b s) h d").contiguous()
+            else:
+                query = rearrange(query, "b s h d -> (b s) h d")
+                key = rearrange(key, "b s h d -> (b s) h d")
+                value = rearrange(value, "b s h d -> (b s) h d")
             
             # Handle both scalar and tensor numerical_timestep for wan2.2 compatibility
             timestep_value = numeral_timestep
@@ -242,9 +314,15 @@ class Wan22SparseAttnProcessor2_0:
                 hidden_states = RadialAttention(
                     query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="radial", block_size=128, decay_factor=self.decay_factor, model_type="wan", pre_defined_mask=None, use_sage_attention=self.use_sage_attention
                 )
-            # transform back to (batch_size, num_heads, seq_len, head_dim)
-            hidden_states = rearrange(hidden_states, "(b s) h d -> b h s d", b=batch_size)
-            
+                
+            if self.use_sp:
+                hidden_states = rearrange(hidden_states.contiguous(), "(b s) h d -> b h s d", b=batch_size).contiguous()
+                # output all_to_all comm needs [b h s d] layout
+                hidden_states = _ft_c_output_all_to_all(hidden_states)
+                hidden_states = rearrange(hidden_states, "b h s d -> b s h d", b=batch_size).contiguous()
+            else:
+                hidden_states = rearrange(hidden_states, "(b s) h d -> b s h d", b=batch_size)
+           
         hidden_states = hidden_states.transpose(1, 2).flatten(2, 3)
         hidden_states = hidden_states.type_as(query)
 
