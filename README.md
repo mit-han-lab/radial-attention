@@ -2,7 +2,11 @@
 
 ### [Paper](https://arxiv.org/abs/2506.19852) | [Website](https://hanlab.mit.edu/projects/radial-attention)
 
-**[2025-08-04]** Radial Attention is now supports [Lightx2v](https://github.com/ModelTC/LightX2V), a 4-step LoRA. Radial Attention also supports [SageAttention2++](https://arxiv.org/abs/2505.21136) for FP8 Matmul accumulation on 4090. With the joint effort of **Radial Attention, SageAttention and Lightx2v LoRA**, now it only takes **33/90 seconds to generate a high-fidelity video for Wan2.1 on a single H100/4090 GPU respectively!**.
+**[2025-09-18]** We are thrilled to announce that Radial Attention is accepted by NeurIPS 2025! Please feel free to reach out at San Diego!
+
+**[2025-09-04]** Radial Attention now supports multi-gpu inference using ulysses sequence from [xDiT project](https://github.com/xdit-project/xDiT/tree/main), great thanks to [Zhemign](https://github.com/1145284121) for making this important PR.
+
+**[2025-08-04]** Radial Attention now supports [Lightx2v](https://github.com/ModelTC/LightX2V), a 4-step LoRA. Radial Attention also supports [SageAttention2++](https://arxiv.org/abs/2505.21136) for FP8 Matmul accumulation on 4090. With the joint effort of **Radial Attention, SageAttention and Lightx2v LoRA**, now it only takes **33/90 seconds to generate a high-fidelity video for Wan2.1 on a single H100/4090 GPU respectively!**.
 
 **[2025-07-22]** Radial Attention is now compatible with [SageAttention](https://github.com/thu-ml/SageAttention) version 2!
 
@@ -125,9 +129,9 @@ bash scripts/hunyuan_t2v_inference.sh
 
 - [x] Integrate [Wan2.1_14B_FusionX LoRA](https://huggingface.co/vrgamedevgirl84/Wan14BT2VFusioniX) for high-quality few-step generation
 - [ ] Adopt [Sparse-VideoGen](https://github.com/svg-project/Sparse-VideoGen/tree/main)'s fused kernels for further speedup
-- [ ] ComfyUI integration (in [ComfyUI-nunchaku](https://github.com/mit-han-lab/ComfyUI-nunchaku))
+- [x] ComfyUI integration (in [ComfyUI-nunchaku](https://github.com/mit-han-lab/ComfyUI-nunchaku))
 - [ ] Support Mochi-1
-- [ ] Support Multi-GPU inference
+- [x] Support Multi-GPU inference
 - [ ] Release LoRA checkpoints for longer-video generation
 
 ## 📚Citation
