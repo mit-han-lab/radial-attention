@@ -2,7 +2,7 @@
 
 ### [Paper](https://arxiv.org/abs/2506.19852) | [Website](https://hanlab.mit.edu/projects/radial-attention)
 
-**[2025-09-18]** We are thrilled to announce that Radial Attention is **accepted by NeurIPS 2025!**🎉🎉🎉 Please feel free to reach out at San Diego!
+**[2025-09-18]** We are thrilled to announce that Radial Attention is **accepted by NeurIPS 2025!** 🎉🎉🎉 Please feel free to reach out at San Diego!
 
 **[2025-09-04]** Radial Attention now supports multi-gpu inference using ulysses sequence from [xDiT project](https://github.com/xdit-project/xDiT/tree/main), great thanks to [Zhemign](https://github.com/1145284121) for making this important PR.
 
