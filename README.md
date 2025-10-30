@@ -2,9 +2,11 @@
 
 ### [Paper](https://arxiv.org/abs/2506.19852) | [Website](https://hanlab.mit.edu/projects/radial-attention)
 
+**[2025-10-29]** Radial+SageAttention2++ is now supported on RTX-5090 GPU!
+
 **[2025-09-18]** We are thrilled to announce that Radial Attention is **accepted by NeurIPS 2025!** 🎉🎉🎉 Please feel free to reach out at San Diego!
 
-**[2025-09-04]** Radial Attention now supports multi-gpu inference using ulysses sequence from [xDiT project](https://github.com/xdit-project/xDiT/tree/main), great thanks to [Zhemign](https://github.com/1145284121) for making this important PR.
+**[2025-09-04]** Radial Attention now supports multi-gpu inference using ulysses sequence from [xDiT project](https://github.com/xdit-project/xDiT/tree/main), great thanks to [Zheming](https://github.com/1145284121) for making this important PR.
 
 **[2025-08-04]** Radial Attention now supports [Lightx2v](https://github.com/ModelTC/LightX2V), a 4-step LoRA. Radial Attention also supports [SageAttention2++](https://arxiv.org/abs/2505.21136) for FP8 Matmul accumulation on 4090. With the joint effort of **Radial Attention, SageAttention and Lightx2v LoRA**, now it only takes **33/90 seconds to generate a high-fidelity video for Wan2.1 on a single H100/4090 GPU respectively!**.
 
@@ -69,8 +71,11 @@ Fully compatible with existing style LoRAs. On HunyuanVideo, Radial Attention Lo
 We start with cloning the repository:
 
 ```bash
-git clone git@github.com:mit-han-lab/radial-attention --recursive
+git clone git@github.com:mit-han-lab/radial-attention
 cd radial-attention
+
+# Initialize submodules with custom patches
+bash scripts/init_submodules.sh
 ```
 
 We recommend using CUDA versions 12.4 + Pytorch versions 2.5.1
