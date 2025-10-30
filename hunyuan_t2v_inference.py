@@ -165,4 +165,4 @@ if __name__ == "__main__":
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
         
-    export_to_video(output, args.output_file, fps=24)
+    export_to_video(output, args.output_file, fps=24, backend="imageio")

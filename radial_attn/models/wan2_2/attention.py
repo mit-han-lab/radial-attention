@@ -116,6 +116,8 @@ class Wan22SparseAttnProcessor:
                 timestep_value = numerical_timestep.item() if numerical_timestep.numel() == 1 else numerical_timestep[0].item()
             
             if timestep_value < self.dense_timestep or self.layer_idx < self.dense_block or self.sparse_type == "dense":
+                batch_size = query.shape[0]
+                
                 if self.use_sp:
                     batch_size = query.shape[0]
                     # Ugly but useful now. TODO: modify all_to_all fuc of xdit to handle different layouts
@@ -128,20 +130,26 @@ class Wan22SparseAttnProcessor:
                     key = _ft_c_input_all_to_all(key)
                     value = _ft_c_input_all_to_all(value)
 
-                    query = rearrange(query, "b h s d" " -> b s h d").contiguous()
-                    key = rearrange(key, "b h s d" " -> b s h d").contiguous()
-                    value = rearrange(value, "b h s d" " -> b s h d").contiguous()
-
-                hidden_states = dispatch_attention_fn(
+                    query = rearrange(query, "b h s d" " -> (b s) h d").contiguous()
+                    key = rearrange(key, "b h s d" " -> (b s) h d").contiguous()
+                    value = rearrange(value, "b h s d" " -> (b s) h d").contiguous()
+                else:
+                    query = rearrange(query, "b s h d -> (b s) h d")
+                    key = rearrange(key, "b s h d -> (b s) h d")
+                    value = rearrange(value, "b s h d -> (b s) h d")
+                
+                hidden_states = RadialAttention(
                     query=query, key=key, value=value,
-                    attn_mask=attention_mask, dropout_p=0.0, is_causal=False, backend=self._attention_backend,
+                    mask_map=self.mask_map, sparsity_type="dense", block_size=64, decay_factor=self.decay_factor, model_type="wan", pre_defined_mask=None, use_sage_attention=self.use_sage_attention
                 )
 
                 if self.use_sp:
-                    hidden_states = rearrange(hidden_states.contiguous(), "b s h d -> b h s d", b=batch_size).contiguous()
+                    hidden_states = rearrange(hidden_states.contiguous(), "(b s) h d -> b h s d", b=batch_size).contiguous()
                     # output all_to_all comm needs [b h s d] layout
                     hidden_states = _ft_c_output_all_to_all(hidden_states)
                     hidden_states = rearrange(hidden_states, "b h s d -> b s h d", b=batch_size).contiguous()
+                else:
+                    hidden_states = rearrange(hidden_states, "(b s) h d -> b s h d", b=batch_size)
             else:
                 batch_size = query.shape[0]
                 if self.use_sp:

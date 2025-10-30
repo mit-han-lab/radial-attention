@@ -181,144 +181,158 @@ class MaskMap:
 
     def queryLogMask(self, query, sparse_type, block_size=128, decay_factor=0.5, model_type=None):
         if MaskMap._log_mask is None:
-            MaskMap._log_mask = torch.ones((query.shape[0] // block_size, query.shape[0] // block_size), device=query.device, dtype=torch.bool)
-            MaskMap._log_mask = gen_log_mask_shrinked(query, query.shape[0], self.video_token_num, self.num_frame, sparse_type=sparse_type, decay_factor=decay_factor, model_type=model_type, block_size=block_size)
+            # query shape: [batch, seq, heads, dim]
+            seq_len = query.shape[1]
+            MaskMap._log_mask = torch.ones((seq_len // block_size, seq_len // block_size), device=query.device, dtype=torch.bool)
+            MaskMap._log_mask = gen_log_mask_shrinked(query, seq_len, self.video_token_num, self.num_frame, sparse_type=sparse_type, decay_factor=decay_factor, model_type=model_type, block_size=block_size)
         return MaskMap._log_mask
 
 def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre_defined_mask=None, block_size=128):
+    # Input: [batch, seq, heads, dim]
+    batch_size = query.shape[0]
+
     if video_mask.all():
-        # dense case
-        kv_border = pre_defined_mask[0].sum() if pre_defined_mask is not None else key.shape[0]
+        # dense case - sageattn needs [batch, seq, heads, dim], just slice and call
+        kv_border = pre_defined_mask[0].sum() if pre_defined_mask is not None else key.shape[1]
         output_video = sageattn(
-            query[:mask_map.video_token_num, :, :].unsqueeze(0),
-            key[:kv_border, :, :].unsqueeze(0),
-            value[:kv_border, :, :].unsqueeze(0),
+            query[:, :mask_map.video_token_num, :, :],
+            key[:, :kv_border, :, :],
+            value[:, :kv_border, :, :],
             tensor_layout="NHD",
-        )[0]
-        
+        )
+
         if pre_defined_mask is not None:
+            # flashinfer needs (seq, heads, dim), reshape only here
+            q_flashinfer = rearrange(query[:, mask_map.video_token_num:, :, :], "b s h d -> (b s) h d")
+            k_flashinfer = rearrange(key[:, :pre_defined_mask[0].sum(), :, :], "b s h d -> (b s) h d")
+            v_flashinfer = rearrange(value[:, :pre_defined_mask[0].sum(), :, :], "b s h d -> (b s) h d")
             output_text = flashinfer.single_prefill_with_kv_cache(
-                q=query[mask_map.video_token_num:, :, :],
-                k=key[:pre_defined_mask[0].sum(), :, :],
-                v=value[:pre_defined_mask[0].sum(), :, :],
+                q=q_flashinfer,
+                k=k_flashinfer,
+                v=v_flashinfer,
                 causal=False,
                 return_lse=False,
             )
-            return torch.cat([output_video, output_text], dim=0)
+            # Reshape back and concatenate
+            output_text = rearrange(output_text, "(b s) h d -> b s (h d)", b=batch_size)
+            output_video_flat = output_video.flatten(2, 3)
+            return torch.cat([output_video_flat, output_text], dim=1)
         else:
-            return output_video
-    
-    # sparse-sageattention only supports (b, h, s, d) layout, need rearrange first
-    query_hnd = rearrange(query.unsqueeze(0), "b s h d -> b h s d")
-    key_hnd = rearrange(key.unsqueeze(0), "b s h d -> b h s d")
-    value_hnd = rearrange(value.unsqueeze(0), "b s h d -> b h s d")
+            return output_video.flatten(2, 3)
+
+    # sparse case - block_sparse_sage2_attn_cuda needs (b, h, s, d), reshape only here
     arch = get_cuda_arch_versions()[query.device.index]
-    converted_mask = repeat(sparge_mask_convert(mask=video_mask, block_size=block_size, arch=arch), "s t -> b h s t", b=query_hnd.shape[0], h=query_hnd.shape[1])
-    
+    converted_mask = repeat(sparge_mask_convert(mask=video_mask, block_size=block_size, arch=arch), "s t -> b h s t", b=batch_size, h=query.shape[2])
     converted_mask = converted_mask.to(torch.int8)
+
     if pre_defined_mask is None:
-        # wan case
+        # wan case - reshape to (b, h, s, d) right before calling kernel
+        query_bhsd = rearrange(query, "b s h d -> b h s d")
+        key_bhsd = rearrange(key, "b s h d -> b h s d")
+        value_bhsd = rearrange(value, "b s h d -> b h s d")
+
         output = block_sparse_sage2_attn_cuda(
-            query_hnd[:, :, :mask_map.video_token_num, :],
-            key_hnd[:, :, :mask_map.video_token_num, :],
-            value_hnd[:, :, :mask_map.video_token_num, :],
-            mask_id=converted_mask,
+            query_bhsd,
+            key_bhsd,
+            value_bhsd,
+            mask_id=converted_mask[:, :, :, :key_bhsd.shape[2] // block_size].contiguous(),
             tensor_layout="HND",
         )
+        # Reshape back to [batch, seq, heads*dim]
+        return rearrange(output, "b h s d -> b s (h d)")
 
-        # rearrange back to (s, h, d), we know that b = 1
-        output = rearrange(output, "b h s d -> s (b h) d", b=1)
-        return output
-    
-    query_video = query_hnd[:, :, :mask_map.video_token_num, :]
-    key_video = key_hnd
-    value_video = value_hnd
+    # Reshape to (b, h, s, d) for video part
+    query_bhsd = rearrange(query, "b s h d -> b h s d")
+    key_bhsd = rearrange(key, "b s h d -> b h s d")
+    value_bhsd = rearrange(value, "b s h d -> b h s d")
+
     kv_border = (pre_defined_mask[0].sum() + 63) // 64
     converted_mask[:, :, :, kv_border:] = False
     output_video = block_sparse_sage2_attn_cuda(
-        query_video,
-        key_video,
-        value_video,
+        query_bhsd[:, :, :mask_map.video_token_num, :],
+        key_bhsd,
+        value_bhsd,
         mask_id=converted_mask[:, :, :mask_map.video_token_num // block_size, :].contiguous(),
         tensor_layout="HND",
     )
-    
-    # rearrange back to (s, h, d), we know that b = 1
-    output_video = rearrange(output_video, "b h s d -> s (b h) d", b=1)
-    
-    # gt = sparse_sageattn(
-    #     query_video,
-    #     key_video,
-    #     value_video,
-    #     mask_id=None,
-    #     is_causal=False,
-    #     tensor_layout="HND",
-    # )[0]
-    
-    
-    
-    # import pdb; pdb.set_trace()
-    
+    output_video = rearrange(output_video, "b h s d -> b s (h d)")
+
+    # flashinfer needs (seq, heads, dim), reshape from [batch, seq, heads, dim]
+    q_flashinfer = rearrange(query[:, mask_map.video_token_num:, :, :], "b s h d -> (b s) h d")
+    k_flashinfer = rearrange(key[:, :pre_defined_mask[0].sum(), :, :], "b s h d -> (b s) h d")
+    v_flashinfer = rearrange(value[:, :pre_defined_mask[0].sum(), :, :], "b s h d -> (b s) h d")
     output_text = flashinfer.single_prefill_with_kv_cache(
-        q=query[mask_map.video_token_num:, :, :],
-        k=key[:pre_defined_mask[0].sum(), :, :],
-        v=value[:pre_defined_mask[0].sum(), :, :],
+        q=q_flashinfer,
+        k=k_flashinfer,
+        v=v_flashinfer,
         causal=False,
         return_lse=False,
     )
-    
-    return torch.cat([output_video, output_text], dim=0)
+    output_text = rearrange(output_text, "(b s) h d -> b s (h d)", b=batch_size)
+
+    return torch.cat([output_video, output_text], dim=1)
     
 
 def FlashInferBackend(query, key, value, mask_map=None, pre_defined_mask=None, bsr_wrapper=None):
+    # Input: [batch, seq, heads, dim]
+    # FlashInfer needs (seq, heads, dim), reshape only here
+    batch_size = query.shape[0]
+    query_shd = rearrange(query, "b s h d -> (b s) h d")
+    key_shd = rearrange(key, "b s h d -> (b s) h d")
+    value_shd = rearrange(value, "b s h d -> (b s) h d")
+
     if pre_defined_mask is not None:
         video_video_o, video_video_o_lse = bsr_wrapper.run(
-            query[:mask_map.video_token_num, :, :], 
-            key[:mask_map.video_token_num, :, :],
-            value[:mask_map.video_token_num, :, :],
+            query_shd[:mask_map.video_token_num, :, :],
+            key_shd[:mask_map.video_token_num, :, :],
+            value_shd[:mask_map.video_token_num, :, :],
             return_lse=True
-        ) 
+        )
         # perform non-causal flashinfer on the text tokens
         video_text_o, video_text_o_lse = flashinfer.single_prefill_with_kv_cache(
-            q=query[:mask_map.video_token_num, :, :],
-            k=key[mask_map.video_token_num:, :, :],
-            v=value[mask_map.video_token_num:, :, :],
+            q=query_shd[:mask_map.video_token_num, :, :],
+            k=key_shd[mask_map.video_token_num:, :, :],
+            v=value_shd[mask_map.video_token_num:, :, :],
             causal=False,
             return_lse=True,
             custom_mask=pre_defined_mask[:mask_map.video_token_num, mask_map.video_token_num:]
         )
-        
+
         # merge the two results
         o_video, _ = flashinfer.merge_state(v_a=video_video_o, s_a=video_video_o_lse, v_b=video_text_o, s_b=video_text_o_lse)
-        
+
         o_text = flashinfer.single_prefill_with_kv_cache(
-            q=query[mask_map.video_token_num:, :, :],
-            k=key,
-            v=value,
+            q=query_shd[mask_map.video_token_num:, :, :],
+            k=key_shd,
+            v=value_shd,
             causal=False,
             return_lse=False,
             custom_mask=pre_defined_mask[mask_map.video_token_num:, :]
         )
-        
-        return torch.cat([o_video, o_text], dim=0)
+
+        output = torch.cat([o_video, o_text], dim=0)
+        # Reshape back to [batch, seq, heads*dim]
+        return rearrange(output, "(b s) h d -> b s (h d)", b=batch_size)
     else:
         o = bsr_wrapper.run(
-            query[:mask_map.video_token_num, :, :],
-            key[:mask_map.video_token_num, :, :],
-            value[:mask_map.video_token_num, :, :]
+            query_shd[:mask_map.video_token_num, :, :],
+            key_shd[:mask_map.video_token_num, :, :],
+            value_shd[:mask_map.video_token_num, :, :]
         )
-        return o
+        # Reshape back to [batch, seq, heads*dim]
+        return rearrange(o, "(b s) h d -> b s (h d)", b=batch_size)
 
 def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", block_size=128, decay_factor=1, model_type=None, pre_defined_mask=None, use_sage_attention=False):
-    orig_seqlen, num_head, hidden_dim = query.shape
+    # Input shape: [batch_size, seq_len, num_heads, head_dim] - following diffusers convention
+    batch_size, seq_len, num_head, hidden_dim = query.shape
 
     if sparsity_type == "dense":
         video_mask = torch.ones((mask_map.video_token_num // block_size, mask_map.video_token_num // block_size), device=query.device, dtype=torch.bool)
     else:
         video_mask = mask_map.queryLogMask(query, sparsity_type, block_size=block_size, decay_factor=decay_factor, model_type=model_type) if mask_map else None
-    
+
     backend = "sparse_sageattn" if use_sage_attention else "flashinfer"
-    
+
     if backend == "flashinfer":
         video_mask = video_mask[:mask_map.video_token_num // block_size, :mask_map.video_token_num // block_size]
         # perform block-sparse attention on the video tokens
@@ -327,10 +341,10 @@ def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", bl
             workspace_buffer,
             backend="fa2",
         )
-        
+
         indptr = get_indptr_from_mask(video_mask, query)
         indices = get_indices_from_mask(video_mask, query)
-        
+
         bsr_wrapper.plan(
             indptr=indptr,
             indices=indices,
@@ -345,7 +359,7 @@ def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", bl
             kv_data_type=key.dtype,
             o_data_type=query.dtype,
         )
-        
+
         return FlashInferBackend(query, key, value, mask_map, pre_defined_mask, bsr_wrapper)
     elif backend == "sparse_sageattn":
         return SpargeSageAttnBackend(query, key, value, mask_map, video_mask, pre_defined_mask, block_size=block_size)

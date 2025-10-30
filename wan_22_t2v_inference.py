@@ -87,14 +87,28 @@ if __name__ == "__main__":
     vae.enable_tiling()
     
     # Load pipeline
-    pipe = WanPipeline.from_pretrained(model_id, vae=vae, torch_dtype=torch.bfloat16)
-    
+    if args.use_model_offload:
+        # Load components separately for model offloading
+        transformer = WanTransformer3DModel.from_pretrained(model_id, subfolder="transformer", torch_dtype=torch.bfloat16)
+        transformer_2 = WanTransformer3DModel.from_pretrained(model_id, subfolder="transformer_2", torch_dtype=torch.bfloat16)
+        text_encoder = UMT5EncoderModel.from_pretrained(model_id, subfolder="text_encoder", torch_dtype=torch.bfloat16)
+
+        # Apply group offloading to each component
+        transformer.enable_group_offload(torch.device("cuda"), torch.device("cpu"), "block_level", num_blocks_per_group=5)
+        transformer_2.enable_group_offload(torch.device("cuda"), torch.device("cpu"), "block_level", num_blocks_per_group=5)
+        apply_group_offloading(text_encoder, onload_device=torch.device("cuda"), offload_device=torch.device("cpu"), offload_type="block_level", num_blocks_per_group=4)
+
+        # Create pipeline with offloaded components
+        pipe = WanPipeline.from_pretrained(model_id, transformer=transformer, transformer_2=transformer_2, text_encoder=text_encoder, vae=vae, torch_dtype=torch.bfloat16)
+    else:
+        pipe = WanPipeline.from_pretrained(model_id, vae=vae, torch_dtype=torch.bfloat16)
+
     if args.lora_checkpoint_dir is not None:
         pipe.load_lora_weights(
             args.lora_checkpoint_dir,
             weight_name=args.lora_checkpoint_name,
         )
-        
+
     pipe.to("cuda")
 
     if args.prompt is None:
@@ -136,4 +150,4 @@ if __name__ == "__main__":
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
         
-    export_to_video(output, args.output_file, fps=16)
+    export_to_video(output, args.output_file, fps=16, backend="imageio")
