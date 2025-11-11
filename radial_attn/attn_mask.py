@@ -16,6 +16,7 @@ def get_cuda_arch_versions():
 # try to import block_sparse_sage2_attn_cuda from spas_sage_attn, if it fails, use the one from sparse_sageattn
 try:
     from spas_sage_attn import block_sparse_sage2_attn_cuda
+    print("Using spas_sage_attn as block_sparse_sage2_attn_cuda")
 except ImportError:
     print("Using sparse_sageattn as block_sparse_sage2_attn_cuda")
     from sparse_sageattn import sparse_sageattn as block_sparse_sage2_attn_cuda
@@ -115,7 +116,7 @@ def get_window_width(i, j, token_per_frame, sparse_type, num_frame, decay_factor
         if dist < 1:
             return token_per_frame
         if dist == 1:
-            return token_per_frame // 2
+            return token_per_frame
     elif model_type == "hunyuan":
         if dist <= 1:
             return token_per_frame

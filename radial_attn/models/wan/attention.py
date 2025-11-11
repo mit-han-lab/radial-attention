@@ -43,7 +43,7 @@ class WanSparseAttnProcessor:
         encoder_hidden_states: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         rotary_emb: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-        numerical_timestep: Optional[torch.Tensor] = None
+        numeral_timestep: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         encoder_hidden_states_img = None
         if attn.add_k_proj is not None:
@@ -127,7 +127,7 @@ class WanSparseAttnProcessor:
                 key = rearrange(key, "b s h d -> (b s) h d")
                 value = rearrange(value, "b s h d -> (b s) h d")
 
-            if numerical_timestep < self.dense_timestep or self.layer_idx < self.dense_block or self.sparse_type == "dense":
+            if numeral_timestep < self.dense_timestep or self.layer_idx < self.dense_block or self.sparse_type == "dense":
                 hidden_states = RadialAttention(
                     query=query, key=key, value=value, mask_map=self.mask_map, sparsity_type="dense", block_size=128, decay_factor=self.decay_factor, model_type="wan", pre_defined_mask=None, use_sage_attention=self.use_sage_attention
                 )

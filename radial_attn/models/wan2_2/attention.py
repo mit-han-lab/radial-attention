@@ -46,7 +46,7 @@ class Wan22SparseAttnProcessor:
         encoder_hidden_states: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         rotary_emb: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-        numerical_timestep: Optional[torch.Tensor] = None
+        numeral_timestep: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         encoder_hidden_states_img = None
         if attn.add_k_proj is not None:
@@ -110,10 +110,10 @@ class Wan22SparseAttnProcessor:
                 
         else: # case for sparse attention
             
-            # Handle both scalar and tensor numerical_timestep for wan2.2 compatibility
-            timestep_value = numerical_timestep
-            if torch.is_tensor(numerical_timestep):
-                timestep_value = numerical_timestep.item() if numerical_timestep.numel() == 1 else numerical_timestep[0].item()
+            # Handle both scalar and tensor numeral_timestep for wan2.2 compatibility
+            timestep_value = numeral_timestep
+            if torch.is_tensor(numeral_timestep):
+                timestep_value = numeral_timestep.item() if numeral_timestep.numel() == 1 else numeral_timestep[0].item()
             
             if timestep_value < self.dense_timestep or self.layer_idx < self.dense_block or self.sparse_type == "dense":
                 batch_size = query.shape[0]
@@ -308,7 +308,7 @@ class Wan22SparseAttnProcessor2_0:
                 key = rearrange(key, "b s h d -> (b s) h d")
                 value = rearrange(value, "b s h d -> (b s) h d")
             
-            # Handle both scalar and tensor numerical_timestep for wan2.2 compatibility
+            # Handle both scalar and tensor numeral_timestep for wan2.2 compatibility
             timestep_value = numeral_timestep
             if torch.is_tensor(numeral_timestep):
                 timestep_value = numeral_timestep.item() if numeral_timestep.numel() == 1 else numeral_timestep[0].item()

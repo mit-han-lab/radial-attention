@@ -56,15 +56,15 @@ class Wan22TransformerBlock_Sparse(WanTransformerBlock):
         # 1. Self-attention
         norm_hidden_states = (self.norm1(hidden_states.float()) * (1 + scale_msa) + shift_msa).type_as(hidden_states)
 
-        # Runtime check: see if the processor accepts numerical_timestep
+        # Runtime check: see if the processor accepts numeral_timestep
         attn_processor = self.attn1.processor if hasattr(self.attn1, 'processor') else self.attn1
         sig = inspect.signature(attn_processor.__call__ if hasattr(attn_processor, '__call__') else attn_processor)
 
-        if 'numerical_timestep' in sig.parameters or 'numeral_timestep' in sig.parameters:
-            # Processor accepts numerical_timestep parameter
-            attn_output = self.attn1(hidden_states=norm_hidden_states, rotary_emb=rotary_emb, numerical_timestep=numeral_timestep)
+        if 'numeral_timestep' in sig.parameters:
+            # Processor accepts numeral_timestep parameter
+            attn_output = self.attn1(hidden_states=norm_hidden_states, rotary_emb=rotary_emb, numeral_timestep=numeral_timestep)
         else:
-            # Processor doesn't accept numerical_timestep, omit it
+            # Processor doesn't accept numeral_timestep, omit it
             attn_output = self.attn1(hidden_states=norm_hidden_states, rotary_emb=rotary_emb)
 
         hidden_states = (hidden_states.float() + attn_output * gate_msa).type_as(hidden_states)
