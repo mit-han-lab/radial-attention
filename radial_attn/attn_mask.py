@@ -276,8 +276,13 @@ def SpargeSageAttnBackend(query, key, value, mask_map=None, video_mask=None, pre
 
 def FlashInferBackend(query, key, value, mask_map=None, pre_defined_mask=None, bsr_wrapper=None):
     # Input: [batch, seq, heads, dim]
-    # FlashInfer needs (seq, heads, dim), reshape only here
+    # FlashInfer needs (seq, heads, dim) of a single sequence, so run the batch one sample at a time
     batch_size = query.shape[0]
+    if batch_size > 1:
+        return torch.cat([
+            FlashInferBackend(query[i:i + 1], key[i:i + 1], value[i:i + 1], mask_map, pre_defined_mask, bsr_wrapper)
+            for i in range(batch_size)
+        ], dim=0)
     query_shd = rearrange(query, "b s h d -> (b s) h d")
     key_shd = rearrange(key, "b s h d -> (b s) h d")
     value_shd = rearrange(value, "b s h d -> (b s) h d")
@@ -325,6 +330,15 @@ def FlashInferBackend(query, key, value, mask_map=None, pre_defined_mask=None, b
 
 def RadialAttention(query, key, value, mask_map=None, sparsity_type="radial", block_size=128, decay_factor=1, model_type=None, pre_defined_mask=None, use_sage_attention=False):
     # Input shape: [batch_size, seq_len, num_heads, head_dim] - following diffusers convention
+    # The model attention processors pass [(batch_size seq_len), num_heads, head_dim] and expect the same layout back
+    if query.dim() == 3:
+        seq_len = pre_defined_mask.shape[0] if pre_defined_mask is not None else mask_map.video_token_num
+        query = rearrange(query, "(b s) h d -> b s h d", s=seq_len)
+        key = rearrange(key, "(b s) h d -> b s h d", s=seq_len)
+        value = rearrange(value, "(b s) h d -> b s h d", s=seq_len)
+        output = RadialAttention(query, key, value, mask_map, sparsity_type, block_size, decay_factor, model_type, pre_defined_mask, use_sage_attention)
+        return rearrange(output, "b s (h d) -> (b s) h d", h=query.shape[2])
+
     batch_size, seq_len, num_head, hidden_dim = query.shape
 
     if sparsity_type == "dense":
