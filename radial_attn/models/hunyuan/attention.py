@@ -31,7 +31,7 @@ class HunyuanVideoAttnSparseProcessor2_0:
         self.layer_idx = layer_idx
         self.use_sp = False
 
-        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+        if dist.is_available() and dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
             self.use_sp = True
 
     def __call__(

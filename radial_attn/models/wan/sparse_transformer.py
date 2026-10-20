@@ -139,7 +139,7 @@ class WanTransformer3DModel_Sparse(WanTransformer3DModel):
         if encoder_hidden_states_image is not None:
             encoder_hidden_states = torch.concat([encoder_hidden_states_image, encoder_hidden_states], dim=1)
 
-        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+        if dist.is_available() and dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
             # split video latents on dim TS
             hidden_states = torch.chunk(hidden_states, get_ulysses_parallel_world_size(), dim=-2)[get_ulysses_parallel_rank()]
             rotary_emb = (
@@ -183,7 +183,7 @@ class WanTransformer3DModel_Sparse(WanTransformer3DModel):
         hidden_states = (self.norm_out(hidden_states.float()) * (1 + scale) + shift).type_as(hidden_states)
         hidden_states = self.proj_out(hidden_states)
 
-        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+        if dist.is_available() and dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
             hidden_states = get_sp_group().all_gather(hidden_states, dim=-2)
 
         hidden_states = hidden_states.reshape(

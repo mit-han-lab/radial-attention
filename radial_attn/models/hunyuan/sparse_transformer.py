@@ -194,7 +194,7 @@ class HunyuanVideoTransformer3DModelSparse(HunyuanVideoTransformer3DModel):
         attention_mask = attention_mask.masked_fill(mask_indices, False)
         attention_mask = attention_mask.unsqueeze(1).unsqueeze(1)  # [B, 1, 1, N]
 
-        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+        if dist.is_available() and dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
             encoder_hidden_states = torch.chunk(encoder_hidden_states, get_ulysses_parallel_world_size(), dim=-2)[get_ulysses_parallel_rank()]
             # split video latents on sequence dimension
             hidden_states = torch.chunk(hidden_states, get_ulysses_parallel_world_size(), dim=-2)[get_ulysses_parallel_rank()]
@@ -265,7 +265,7 @@ class HunyuanVideoTransformer3DModelSparse(HunyuanVideoTransformer3DModel):
         hidden_states = self.proj_out(hidden_states)
 
         # gather latents on sequence dimension
-        if dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
+        if dist.is_available() and dist.is_initialized() and get_ulysses_parallel_world_size() > 1:
             hidden_states = get_sp_group().all_gather(hidden_states, dim=-2)
 
         hidden_states = hidden_states.reshape(
